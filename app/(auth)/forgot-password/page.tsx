@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -35,19 +36,34 @@ export default function ForgotPasswordPage() {
         <div className="absolute bottom-[-15%] right-[-15%] w-[80%] h-[80%] rounded-full bg-[#0891b2]/30 blur-[130px] pointer-events-none" />
         
         <div className="relative z-10">
-          <Link href="/" className="inline-flex items-center gap-3 mb-24 group">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg shadow-inner ring-1 ring-white/30 transition-transform group-hover:scale-110">
-              M
+          {/* Logo */}
+          <Link href="/" className="inline-flex flex-col items-start mb-12 group">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="relative w-20 h-20 drop-shadow-2xl group-hover:scale-105 transition-transform duration-300">
+                <Image
+                  src="/logo.png"
+                  alt="MathBot Logo"
+                  fill
+                  sizes="80px"
+                  className="object-contain mix-blend-screen"
+                  priority
+                />
+              </div>
+              <div>
+                <p className="text-4xl font-black tracking-tight text-white leading-none">MathBot</p>
+                <p className="text-sm font-semibold text-white/70 mt-1">Toán không khó — chỉ cần đúng cách</p>
+              </div>
             </div>
-            <span className="text-2xl font-black tracking-tighter uppercase italic">MathBot</span>
           </Link>
 
-          <h1 className="text-5xl font-extrabold leading-[1.1] mb-8 tracking-tight">
-            An tâm <br />
-            <span className="text-[#f0fdf9]">phục hồi tài khoản</span>
+          {/* Slogan */}
+          <h1 className="text-5xl lg:text-6xl font-extrabold leading-[1.05] mb-6 tracking-tight">
+            An tâm<br />
+            <span className="text-white drop-shadow-sm">phục hồi</span><br />
+            <span className="text-white/60">tài khoản</span>
           </h1>
-          <p className="text-[#f0fdf9]/80 text-lg leading-relaxed mb-14 font-medium max-w-sm">
-            Đừng lo lắng, chúng tôi sẽ giúp bạn lấy lại quyền truy cập vào lộ trình học tập của mình chỉ sau vài bước.
+          <p className="text-white/75 text-base leading-relaxed mb-12 font-medium max-w-xs">
+            Đừng lo lắng — chúng tôi sẽ giúp bạn lấy lại quyền truy cập vào lộ trình học tập chỉ sau vài bước.
           </p>
 
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-[2rem] p-8 shadow-xl relative overflow-hidden group">

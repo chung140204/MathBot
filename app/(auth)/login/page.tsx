@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,19 +51,34 @@ export default function LoginPage() {
         <div className="absolute bottom-[-15%] right-[-15%] w-[80%] h-[80%] rounded-full bg-[#0891b2]/30 blur-[130px] pointer-events-none" />
         
         <div className="relative z-10">
-          <Link href="/" className="inline-flex items-center gap-3 mb-24 group">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg shadow-inner ring-1 ring-white/30 transition-transform group-hover:scale-110">
-              M
+          {/* Logo */}
+          <Link href="/" className="inline-flex flex-col items-start mb-12 group">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="relative w-20 h-20 drop-shadow-2xl group-hover:scale-105 transition-transform duration-300">
+                <Image
+                  src="/logo.png"
+                  alt="MathBot Logo"
+                  fill
+                  sizes="80px"
+                  className="object-contain mix-blend-screen"
+                  priority
+                />
+              </div>
+              <div>
+                <p className="text-4xl font-black tracking-tight text-white leading-none">MathBot</p>
+                <p className="text-sm font-semibold text-white/70 mt-1">Toán không khó — chỉ cần đúng cách</p>
+              </div>
             </div>
-            <span className="text-2xl font-black tracking-tighter uppercase italic">MathBot</span>
           </Link>
 
-          <h1 className="text-5xl font-extrabold leading-[1.1] mb-8 tracking-tight">
-            Nâng tầm <br />
-            <span className="text-[#f0fdf9]">trí tuệ Toán học</span>
+          {/* Slogan */}
+          <h1 className="text-5xl lg:text-6xl font-extrabold leading-[1.05] mb-6 tracking-tight">
+            Nâng tầm<br />
+            <span className="text-white drop-shadow-sm">trí tuệ</span><br />
+            <span className="text-white/60">Toán học</span>
           </h1>
-          <p className="text-[#f0fdf9]/80 text-lg leading-relaxed mb-14 font-medium max-w-sm">
-            Trải nghiệm nền tảng học tập AI thế hệ mới, tối ưu hóa mọi công thức và bài toán dành riêng cho bạn.
+          <p className="text-white/75 text-base leading-relaxed mb-12 font-medium max-w-xs">
+            Trải nghiệm nền tảng học tập AI thế hệ mới — giải từng bước, phân tích điểm yếu, chinh phục đại học.
           </p>
 
           <div className="space-y-6">
@@ -99,9 +115,17 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-10 opacity-70">
-          <div><p className="text-2xl font-black italic">1.2K+</p><p className="text-[10px] uppercase font-bold tracking-widest text-[#f0fdf9]/80">Học sinh</p></div>
-          <div><p className="text-2xl font-black italic">11</p><p className="text-[10px] uppercase font-bold tracking-widest text-[#f0fdf9]/80">Chủ đề</p></div>
+        <div className="flex items-center gap-8">
+          {[
+            { value: '200+', label: 'Câu hỏi' },
+            { value: '12', label: 'Chủ đề' },
+            { value: '24/7', label: 'AI hỗ trợ' },
+          ].map((s) => (
+            <div key={s.label} className="text-center">
+              <p className="text-2xl font-black text-white">{s.value}</p>
+              <p className="text-[10px] uppercase font-bold tracking-widest text-white/50">{s.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
