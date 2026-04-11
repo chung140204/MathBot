@@ -1,0 +1,84 @@
+# MathBot – Cline Rules
+# This file is automatically read by Cline before every task.
+
+## Context loading (always do this first)
+- Read MEMORY.md first — understand what was done last session and what to continue
+- Read CLAUDE.md before starting any task
+- Read docs/PROJECT_STATUS.md to understand what's done and what's next
+- Read the relevant docs/ file before working on a specific area:
+  - Working on database/models → read docs/DATABASE.md
+  - Working on API routes → read docs/API_SPEC.md
+  - Working on chatbot/RAG → read docs/AI_CHATBOT.md
+  - Working on deployment → read docs/DEPLOYMENT.md
+  - Working on tests → read docs/TESTING.md
+  - Adding questions/knowledge → read docs/SEEDING.md
+
+## Auto-sync rules (do these automatically — never skip)
+
+### When modifying prisma/schema.prisma
+- Update docs/DATABASE.md — add/edit the model, update the relationships diagram
+- Update docs/PROJECT_STATUS.md — mark the related task as ✅
+- Run `npx prisma migrate dev --name describe_the_change`
+- Run `npx prisma generate`
+
+### When adding or modifying an API route
+- Update docs/API_SPEC.md — add/edit the endpoint, request, response format
+- If a new error code is needed, add it to docs/ERROR_CODES.md AND src/lib/errors.ts
+- Update docs/PROJECT_STATUS.md — mark the related task as ✅
+
+### When adding a new feature or module
+- Update docs/ARCHITECTURE.md — add the module description and extension points
+- Update docs/FEATURE_FLAGS.md — add a flag for the new feature
+- Update src/lib/flags.ts — add the flag to the flags object
+- Update docs/PROJECT_STATUS.md — add the new tasks with ⬜ status
+- If an architectural decision was made, create a new file in docs/decisions/
+
+### When modifying the RAG pipeline or AI behavior
+- Update docs/AI_CHATBOT.md — reflect the changes in pipeline, prompts, or config
+- Update docs/PROJECT_STATUS.md — mark the related task as ✅
+
+### When adding a new feature flag
+- Add to docs/FEATURE_FLAGS.md (the table + description)
+- Add to src/lib/flags.ts (the flags object)
+- Add to .env.example (with a comment)
+
+### When adding a new error code
+- Add to docs/ERROR_CODES.md (the registry table)
+- Add to src/lib/errors.ts (the ErrorCode object)
+- Never rename or remove existing codes — mark as [DEPRECATED] instead
+
+### When completing any task
+- Update docs/PROJECT_STATUS.md — change ⬜ to ✅
+- Add a row to the Change log table with today's date and what changed
+- Update MEMORY.md — move completed items out of "What is NOT done yet", update "Last working on"
+
+### At the end of every session (when user says done / stop / goodbye / exit)
+- Update MEMORY.md "Current session" with everything completed
+- Update "What is NOT done yet" so next session resumes instantly
+- Add a summary row to "Session history" table
+
+### When installing a new package
+- Update CLAUDE.md tech stack table if it's a major dependency
+- Add any required environment variables to .env.example with a comment
+
+## Before writing any code
+- Check docs/PROJECT_RULES.md — follow every rule without exception
+- Check docs/FEATURE_FLAGS.md — if the feature has a flag, gate it properly
+- Check docs/ERROR_CODES.md — use existing codes, never invent new error strings
+
+## Code rules (summary — full rules in docs/PROJECT_RULES.md)
+- Always use TypeScript — never create .js files
+- All API routes must be under src/app/api/v1/
+- Always validate API input with Zod
+- Always use Prisma Client — no raw SQL except pgvector search
+- Always check session/auth at the top of every API route handler
+- Always use AppError from src/lib/errors.ts for error handling
+- Always render math with KaTeX — never Unicode math characters
+- Never hardcode secrets — use process.env only
+- Never use `any` TypeScript type
+- Never hard-delete records that affect historical data — use isActive: false
+
+## Project context
+- Stack: Next.js 14 App Router, TypeScript, Prisma, PostgreSQL, pgvector, OpenAI, KaTeX, Tailwind, Zod
+- Subject: Grade 12 Math exam prep chatbot (Vietnamese high school)
+- Topics: FUNCTION_ANALYSIS, DERIVATIVES, INTEGRALS, EXPONENTIAL_LOGARITHM, LIMITS_AND_CONTINUITY, SOLID_GEOMETRY, VOLUMES, COMBINATORICS_PROBABILITY, ANALYTIC_GEOMETRY, SEQUENCES, COMPLEX_NUMBERS

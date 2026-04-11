@@ -39,3 +39,28 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+
+# OS files
+Thumbs.db
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Data
+*.db
+*.sqlite
+*.sqlite3
+*-journal
+
+# Local tools
+skills-lock.json
+CLAUDE.md
+/docs/
