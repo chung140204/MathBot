@@ -9,19 +9,7 @@ import { getKnowledgeChunks } from './actions';
 import StudyChatPanel from '@/components/study/StudyChatPanel';
 import { Topic } from '@prisma/client';
 
-const TOPIC_CONFIG = [
-  { key: 'DERIVATIVES', label: 'Đạo hàm', color: 'green', mockAcc: 88 },
-  { key: 'INTEGRALS', label: 'Tích phân', color: 'blue', mockAcc: 75 },
-  { key: 'FUNCTION_ANALYSIS', label: 'Hàm số', color: 'orange', mockAcc: 62 },
-  { key: 'COMBINATORICS_PROBABILITY', label: 'Xác suất', color: 'red', mockAcc: 45 },
-  { key: 'COMPLEX_NUMBERS', label: 'Số phức', color: 'red', mockAcc: 38 },
-  { key: 'EXPONENTIAL_LOGARITHM', label: 'Logarit', color: 'blue', mockAcc: 80 },
-  { key: 'SOLID_GEOMETRY', label: 'Hình học KG', color: 'purple', mockAcc: 70 },
-  { key: 'SEQUENCES', label: 'Dãy số', color: 'green', mockAcc: 72 },
-  { key: 'LIMITS_AND_CONTINUITY', label: 'Giới hạn', color: 'purple', mockAcc: 65 },
-  { key: 'ANALYTIC_GEOMETRY', label: 'Hình học GT', color: 'orange', mockAcc: 55 },
-  { key: 'VOLUMES', label: 'Thể tích', color: 'green', mockAcc: 78 },
-];
+import { TOPIC_CONFIG, TOPIC_SUBSECTIONS } from '@/lib/constants/topics';
 
 const COLOR_MAP = {
   green: { dot: 'bg-[#059669]', pillBg: 'bg-[#d1fae5]', pillText: 'text-[#059669]', activeBg: 'bg-[#e6f7f2]', activeText: 'text-[#059669]' },
@@ -31,26 +19,13 @@ const COLOR_MAP = {
   purple: { dot: 'bg-purple-500', pillBg: 'bg-purple-100', pillText: 'text-purple-700', activeBg: 'bg-purple-50', activeText: 'text-purple-700' },
 };
 
-const TOPIC_SUBSECTIONS: Record<string, string[]> = {
-  DERIVATIVES: ['Định nghĩa', 'Quy tắc tính', 'Ứng dụng', 'Bài tập mẫu'],
-  INTEGRALS: ['Nguyên hàm', 'Tích phân', 'Ứng dụng', 'Phương pháp tính'],
-  FUNCTION_ANALYSIS: ['Khảo sát', 'Cực trị', 'Tiệm cận', 'Tương giao'],
-  LIMITS_AND_CONTINUITY: ['Dãy số', 'Hàm số', 'Liên tục', 'Bài tập'],
-  COMPLEX_NUMBERS: ['Định nghĩa', 'Phép toán', 'Biểu diễn', 'Phương trình'],
-  COMBINATORICS_PROBABILITY: ['Tổ hợp', 'Xác suất', 'Biến ngẫu nhiên'],
-  SEQUENCES: ['Cấp số cộng', 'Cấp số nhân', 'Quy nạp'],
-  EXPONENTIAL_LOGARITHM: ['Hàm mũ', 'Logarit', 'Phương trình'],
-  VOLUMES: ['Khối đa diện', 'Khối tròn xoay'],
-  ANALYTIC_GEOMETRY: ['Tọa độ Oxy', 'Oxyz', 'Mặt cầu'],
-  SOLID_GEOMETRY: ['Quan hệ song song', 'Quan hệ vuông góc'],
-};
 
 import { Suspense } from 'react';
 
 function StudyContent() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
-  const initTopic = searchParams.get('topic') || 'DERIVATIVES';
+  const initTopic = searchParams.get('topic') || TOPIC_CONFIG[0].key;
   const initSub = parseInt(searchParams.get('sub') || '0', 10);
   
   const [selectedTopic, setSelectedTopic] = useState(initTopic);

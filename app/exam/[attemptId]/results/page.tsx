@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import MathRenderer from '@/components/exam/MathRenderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -13,9 +14,15 @@ interface QuestionResult {
   userAnswer: string | null;
   correctAnswer: string;
   isCorrect: boolean;
+  score: number;
   explanation: string;
   topic: string;
-  options: { A: string; B: string; C: string; D: string };
+  format: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'SHORT_ANSWER';
+  options?: { A: string; B: string; C: string; D: string };
+  statements?: {
+    A: string; B: string; C: string; D: string;
+    ansA: boolean; ansB: boolean; ansC: boolean; ansD: boolean;
+  };
 }
 
 interface TopicStat {
@@ -85,6 +92,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: 'Áp dụng công thức đạo hàm: $f\'(x) = 3x^2 - 6x + 2$.',
       topic: 'DERIVATIVE',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$3x^2 - 6x + 2$', B: '$3x^2 - 6x - 2$', C: '$x^2 - 6x + 2$', D: '$3x^2 + 6x + 2$' },
     },
     {
@@ -96,6 +104,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$\\int (2x+3)dx = x^2 + 3x + C$.',
       topic: 'INTEGRAL',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$x^2 + 3x + C$', B: '$x^2 + 3 + C$', C: '$2x^2 + 3x + C$', D: '$x^2 - 3x + C$' },
     },
     {
@@ -107,6 +116,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: false,
       explanation: '$\\log_2(x+1) = 3 \\Leftrightarrow x+1 = 2^3 = 8 \\Leftrightarrow x = 7$. Đáp án đúng là A.',
       topic: 'LOGARITHM',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$x = 7$', B: '$x = 8$', C: '$x = 6$', D: '$x = 9$' },
     },
     {
@@ -118,6 +128,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$\\int_0^1 x^2 dx = \\frac{x^3}{3}\\Big|_0^1 = \\frac{1}{3}$.',
       topic: 'INTEGRAL',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{1}{3}$', B: '$\\frac{1}{2}$', C: '$1$', D: '$\\frac{2}{3}$' },
     },
     {
@@ -129,6 +140,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$f(x) = (x^2-1)^2 \\geq 0$. Giá trị nhỏ nhất là $0$ tại $x = \\pm 1$.',
       topic: 'DERIVATIVE',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$0$', B: '$1$', C: '$-1$', D: '$2$' },
     },
     {
@@ -140,6 +152,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$|z| = \\sqrt{3^2 + 4^2} = \\sqrt{25} = 5$.',
       topic: 'COMPLEX_NUMBER',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$5$', B: '$7$', C: '$\\sqrt{7}$', D: '$25$' },
     },
     {
@@ -151,6 +164,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: 'Mặt chẵn: $\\{2, 4, 6\\}$ → 3 kết quả thuận lợi / 6 kết quả → $P = \\frac{1}{2}$.',
       topic: 'PROBABILITY',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{1}{2}$', B: '$\\frac{1}{3}$', C: '$\\frac{1}{6}$', D: '$\\frac{2}{3}$' },
     },
     {
@@ -162,6 +176,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: false,
       explanation: "$f'(x) = 3x^2 - 6x = 3x(x-2)$. $f'(x) = 0$ khi $x = 0$ hoặc $x = 2$.\n$f'(x)$ đổi dấu từ $+$ sang $-$ tại $x=0$ → cực đại.\n$f'(x)$ đổi dấu từ $-$ sang $+$ tại $x=2$ → cực tiểu.",
       topic: 'DERIVATIVE',
+      format: 'MULTIPLE_CHOICE',
       options: {
         A: '$x = 0$ và $x = 2$ (cực đại tại $x = 0$, cực tiểu tại $x = 2$)',
         B: '$x = 0$ và $x = 2$ (cực tiểu tại $x = 0$, cực đại tại $x = 2$)',
@@ -178,6 +193,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$C_5^2 = \\frac{5!}{2! \\cdot 3!} = \\frac{120}{2 \\cdot 6} = 10$.',
       topic: 'COMBINATORICS',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$10$', B: '$20$', C: '$5$', D: '$15$' },
     },
     {
@@ -189,6 +205,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$u_{10} = u_1 + 9d = 3 + 18 = 21$.',
       topic: 'SEQUENCE',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$21$', B: '$23$', C: '$19$', D: '$25$' },
     },
     {
@@ -200,6 +217,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$\\int_0^{\\pi} \\sin x\\,dx = [-\\cos x]_0^{\\pi} = -\\cos\\pi + \\cos 0 = 1 + 1 = 2$.',
       topic: 'INTEGRAL',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$2$', B: '$0$', C: '$1$', D: '$-2$' },
     },
     {
@@ -211,6 +229,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$z^2 = (1+i)^2 = 1 + 2i + i^2 = 1 + 2i - 1 = 2i$.',
       topic: 'COMPLEX_NUMBER',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$2i$', B: '$2$', C: '$-2i$', D: '$1 + 2i$' },
     },
     {
@@ -222,6 +241,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$f\'(x) = \\frac{(2x+1)\'}{2x+1} = \\frac{2}{2x+1}$.',
       topic: 'DERIVATIVE',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{2}{2x+1}$', B: '$\\frac{1}{2x+1}$', C: '$\\frac{1}{x}$', D: '$\\frac{2}{x+1}$' },
     },
     {
@@ -233,6 +253,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: false,
       explanation: '$\\log_3(x) > 2 \\Leftrightarrow x > 3^2 = 9$. Đáp án đúng là $x > 9$.',
       topic: 'LOGARITHM',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$x > 9$', B: '$x > 6$', C: '$x > 3$', D: '$x > 8$' },
     },
     {
@@ -244,6 +265,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: 'Công thức thể tích khối cầu: $V = \\frac{4}{3}\\pi R^3$.',
       topic: 'GEOMETRY',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{4}{3}\\pi R^3$', B: '$4\\pi R^2$', C: '$\\frac{2}{3}\\pi R^3$', D: '$\\pi R^3$' },
     },
     {
@@ -255,6 +277,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: "$f'(x) = (2x)' \\cdot e^{2x} = 2e^{2x}$.",
       topic: 'DERIVATIVE',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$2e^{2x}$', B: '$e^{2x}$', C: '$2xe^{2x}$', D: '$e^{x}$' },
     },
     {
@@ -266,6 +289,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: false,
       explanation: 'Các cặp có tổng = 7: $(1,6),(2,5),(3,4),(4,3),(5,2),(6,1)$ → 6 cặp. $P = \\frac{6}{36} = \\frac{1}{6}$.',
       topic: 'PROBABILITY',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{1}{6}$', B: '$\\frac{1}{12}$', C: '$\\frac{5}{36}$', D: '$\\frac{7}{36}$' },
     },
     {
@@ -277,6 +301,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: 'Công bội $q = 3$, $u_1 = 2$ → $u_n = 2 \\cdot 3^{n-1}$.',
       topic: 'SEQUENCE',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$u_n = 2 \\cdot 3^{n-1}$', B: '$u_n = 2 \\cdot 3^{n}$', C: '$u_n = 3 \\cdot 2^{n-1}$', D: '$u_n = 6^{n-1}$' },
     },
     {
@@ -288,6 +313,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$S = \\int_0^2 x^2 \\, dx = \\frac{x^3}{3}\\Big|_0^2 = \\frac{8}{3}$.',
       topic: 'INTEGRAL',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{8}{3}$', B: '$4$', C: '$\\frac{4}{3}$', D: '$2$' },
     },
     {
@@ -299,6 +325,7 @@ const MOCK_RESULT: ExamResultData = {
       isCorrect: true,
       explanation: '$V = \\frac{1}{3} \\cdot S_{ABCD} \\cdot SA = \\frac{1}{3} \\cdot a^2 \\cdot a\\sqrt{2} = \\frac{a^3\\sqrt{2}}{3}$.',
       topic: 'GEOMETRY',
+      format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{a^3\\sqrt{2}}{3}$', B: '$\\frac{a^3}{3}$', C: '$a^3\\sqrt{2}$', D: '$\\frac{a^3\\sqrt{2}}{6}$' },
     },
   ],
@@ -375,37 +402,145 @@ function QuestionItem({ result, isExpanded, onToggle }: {
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const renderMCResult = () => (
+    <div className="mt-4 space-y-2">
+      {!result.isCorrect && (
+        <>
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-bold text-gray-400 w-20 pt-0.5 flex-shrink-0">Bạn chọn:</span>
+            <span className="text-sm text-red-500 font-semibold">
+              {result.userAnswer} — <MathRenderer content={result.options?.[result.userAnswer as keyof typeof result.options] || 'Bỏ qua'} />
+            </span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-bold text-gray-400 w-20 pt-0.5 flex-shrink-0">Đáp án đúng:</span>
+            <span className="text-sm text-[#059669] font-semibold">
+              {result.correctAnswer} — <MathRenderer content={result.options?.[result.correctAnswer as keyof typeof result.options] || ''} />
+            </span>
+          </div>
+        </>
+      )}
+      {result.isCorrect && (
+        <div className="flex items-start gap-2">
+          <span className="text-xs font-bold text-gray-400 w-20 pt-0.5 flex-shrink-0">Đáp án:</span>
+          <span className="text-sm text-[#059669] font-semibold">
+            {result.correctAnswer} — <MathRenderer content={result.options?.[result.correctAnswer as keyof typeof result.options] || ''} />
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderTFResult = () => {
+    const userAnswers = result.userAnswer?.split(',') || ['_', '_', '_', '_'];
+    const statements = result.statements;
+    if (!statements) return null;
+
+    const items = [
+      { label: 'a)', text: statements.A, user: userAnswers[0], correct: statements.ansA },
+      { label: 'b)', text: statements.B, user: userAnswers[1], correct: statements.ansB },
+      { label: 'c)', text: statements.C, user: userAnswers[2], correct: statements.ansC },
+      { label: 'd)', text: statements.D, user: userAnswers[3], correct: statements.ansD },
+    ];
+
+    return (
+      <div className="mt-4 space-y-3">
+        <div className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Kết quả từng ý:</div>
+        {items.map((item, idx) => {
+          const userVal = item.user === 'T' ? true : item.user === 'F' ? false : null;
+          const isItemCorrect = userVal === item.correct;
+          
+          return (
+            <div key={idx} className={`p-3 rounded-xl border-l-4 ${isItemCorrect ? 'bg-emerald-50/50 border-emerald-500' : 'bg-red-50/50 border-red-500'}`}>
+              <div className="flex items-start gap-3">
+                <span className="font-bold text-gray-700 w-6 flex-shrink-0">{item.label}</span>
+                <div className="flex-1 text-sm text-gray-700">
+                  <MathRenderer content={item.text} />
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-4 pl-9">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">Bạn chọn:</span>
+                  <span className={`text-xs font-bold ${userVal === null ? 'text-gray-400' : userVal === item.correct ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {userVal === true ? 'Đúng' : userVal === false ? 'Sai' : 'Bỏ qua'}
+                  </span>
+                </div>
+                {!isItemCorrect && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Đáp án:</span>
+                    <span className="text-xs font-bold text-emerald-600">
+                      {item.correct ? 'Đúng' : 'Sai'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div className="mt-2 text-right">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            Điểm đạt được: {result.score}đ
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderShortResult = () => (
+    <div className="mt-4 space-y-2 p-4 bg-gray-50 rounded-xl border border-gray-100">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-bold text-gray-400 uppercase">Bạn nhập:</span>
+          <span className={`text-lg font-black ${result.isCorrect ? 'text-emerald-600' : 'text-red-500'}`}>
+            {result.userAnswer || '_(Bỏ trống)_'}
+          </span>
+        </div>
+        {!result.isCorrect && (
+          <div className="flex flex-col gap-1 text-right">
+            <span className="text-xs font-bold text-gray-400 uppercase">Đáp án đúng:</span>
+            <span className="text-lg font-black text-emerald-600">
+              {result.correctAnswer}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 text-right">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          Điểm: {result.score}đ
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div className={`border-2 rounded-2xl overflow-hidden transition-all ${
-      result.isCorrect ? 'border-[#059669]/20' : 'border-red-200'
+      result.isCorrect ? 'border-[#059669]/20' : result.score > 0 ? 'border-yellow-200' : 'border-red-200'
     }`}>
       {/* Header row */}
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-4 px-5 py-4 bg-white hover:bg-gray-50/50 transition-colors text-left"
       >
-        {/* Question number */}
         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
           result.isCorrect
             ? 'bg-[#f0fdf9] text-[#059669]'
-            : 'bg-red-50 text-red-500'
+            : result.score > 0
+              ? 'bg-yellow-50 text-yellow-600'
+              : 'bg-red-50 text-red-500'
         }`}>
           {result.questionNumber}
         </span>
 
-        {/* Question text (truncated) */}
         <span className="flex-1 text-sm text-gray-700 truncate">
           <MathRenderer content={result.content} />
         </span>
 
-        {/* Status badge */}
         <span className={`text-xs font-bold flex-shrink-0 ${
-          result.isCorrect ? 'text-[#059669]' : 'text-red-500'
+          result.isCorrect ? 'text-[#059669]' : result.score > 0 ? 'text-yellow-600' : 'text-red-500'
         }`}>
-          {result.isCorrect ? '✓ Đúng' : '✗ Sai'}
+          {result.isCorrect ? '✓ Đúng' : result.score > 0 ? `! Đúng ${result.score * 10 || 0}/4 ý` : '✗ Sai'}
         </span>
 
-        {/* Expand icon */}
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -414,30 +549,16 @@ function QuestionItem({ result, isExpanded, onToggle }: {
         </svg>
       </button>
 
-      {/* Expanded detail */}
       {isExpanded && (
         <div className="px-5 pb-5 border-t border-gray-100 bg-gray-50/30">
-          {/* Show user answer vs correct answer for wrong questions */}
-          {!result.isCorrect && (
-            <div className="mt-4 space-y-2">
-              <div className="flex items-start gap-2">
-                <span className="text-xs font-bold text-gray-400 w-20 pt-0.5 flex-shrink-0">Bạn chọn:</span>
-                <span className="text-sm text-red-500 font-semibold">
-                  {result.userAnswer} — <MathRenderer content={result.options[result.userAnswer as keyof typeof result.options] || 'Bỏ qua'} />
-                </span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-xs font-bold text-gray-400 w-20 pt-0.5 flex-shrink-0">Đáp án đúng:</span>
-                <span className="text-sm text-[#059669] font-semibold">
-                  {result.correctAnswer} — <MathRenderer content={result.options[result.correctAnswer as keyof typeof result.options]} />
-                </span>
-              </div>
-            </div>
-          )}
+          {/* Detailed results based on format */}
+          {result.format === 'MULTIPLE_CHOICE' && renderMCResult()}
+          {result.format === 'TRUE_FALSE' && renderTFResult()}
+          {result.format === 'SHORT_ANSWER' && renderShortResult()}
 
           {/* Explanation */}
-          <div className="mt-4 pl-4 border-l-4 border-[#059669] bg-white py-3 px-4 rounded-r-xl">
-            <p className="text-xs font-bold text-gray-400 mb-1.5">Giải thích:</p>
+          <div className="mt-4 pl-4 border-l-4 border-[#059669] bg-white py-3 px-4 rounded-r-xl shadow-sm">
+            <p className="text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wider">Hướng dẫn giải:</p>
             <div className="text-sm text-gray-700 leading-relaxed">
               <MathRenderer content={result.explanation} />
             </div>
@@ -451,13 +572,58 @@ function QuestionItem({ result, isExpanded, onToggle }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ExamResultsPage() {
-  const data = MOCK_RESULT;
-  const wrongQuestions = data.results.filter((r) => !r.isCorrect);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    // Auto-expand wrong questions
-    return new Set(wrongQuestions.map((r) => r.questionId));
-  });
+  const { attemptId } = useParams();
+  const [data, setData] = useState<ExamResultData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    async function fetchResults() {
+      try {
+        const res = await fetch(`/api/v1/exam/attempts/${attemptId}`);
+        if (!res.ok) throw new Error('Không thể tải kết quả bài thi');
+        const resultData = await res.json();
+        setData(resultData);
+        
+        // Auto-expand wrong questions once data is loaded
+        const wrongIds = resultData.results
+          .filter((r: any) => !r.isCorrect)
+          .map((r: any) => r.questionId);
+        setExpandedIds(new Set(wrongIds));
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchResults();
+  }, [attemptId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f0fdf9] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-emerald-700 font-bold">Đang tải kết quả...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-[#f0fdf9] flex flex-col items-center justify-center p-6 text-center">
+        <div className="text-5xl mb-4">⚠️</div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2">Đã xảy ra lỗi</h1>
+        <p className="text-gray-600 mb-6">{error || 'Không tìm thấy dữ liệu bài thi'}</p>
+        <Link href="/dashboard" className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg">
+          Quay lại Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  const wrongQuestions = data.results.filter((r) => !r.isCorrect);
 
   const scoreLabel = getScoreLabel(data.percentage);
   const wrongCount = data.totalQuestions - data.totalScore;

@@ -8,56 +8,53 @@
 
 ## Current session
 
-**Date:** 2026-04-11
-**Last working on:** Study module navigation, UI polishes, Prisma DB connection adapter fix
-**Status:** Study Sidebar isolated, UI colors exposed, Database 500 error eliminated
+**Date:** 2026-04-13
+**Last working on:** Exam Module Completion (Generation, Results, AI Hints)
+**Status:** Exam cycle finalized (Start -> Submit -> Result) with AI assistance
 
 ### What was completed today
 
-#### 1. Study Navigation Revamp ✅
-- Re-implemented `TOPIC_CONFIG` accordion in `app/(dashboard)/layout.tsx` isolated ONLY to `/study` paths.
-- Added color-coded dots, drop-shadows, and layout alignment for topic configuration logic.
-- Managed URL synchronization safely via `<React.Suspense>` over `useSearchParams()` to avoid build de-opts.
+#### 1. Exam Results Module ✅
+- Implemented `/exam/result` page with high-quality UI, hero stats, and performance breakdown charts.
+- Created `GET /api/v1/exam/result` endpoint for fetching attempt data with safety filters.
+- Added performance feedback based on topic accuracy (AI suggestions section).
 
-#### 2. UI Polishes & Logo Integration ✅
-- Replaced the placeholder "M" logo with a custom `/mathbot-logo.png` image with `next/image`. added custom graphic sizing.
-- Added user slogan "Học không còn là nghĩa vụ – mà là trải nghiệm" neatly below the new logo.
-- Removed `grayscale` effect from all global sidebar icons so they stay colored regardless of hover state.
-- Fixed a `sizes` warning on the Next.js `Image` component.
+#### 2. Exam Generation & Lifecycle ✅
+- Replaced mock question logic in `app/exam/page.tsx` with dynamic fetches from `/api/v1/exam/generate`.
+- Added `ExamSetupModal` for configuring topics and question count before starting.
+- Implemented `current_exam_session` and state persistence in `localStorage` for crash recovery.
+- Normalized scoring logic for MC (1pt), TF (0.25pt/item), and SA (0.5pt) based on 2025 THPT standards.
 
-#### 3. Database Connection (Prisma Neon HTTP) Fix ✅
-- Resolved a critical 500 `Failed to execute 'json' on 'Response': Unexpected end of JSON input` error caused by `PrismaClient` initialization failing to fallback correctly to `neon(connectionString)`.
-- Corrected `lib/db.ts` to implement `Pool` mapped with `ws` from `@neondatabase/serverless` instead of standard `neon` tagged literal, passing the `PrismaNeon` adapter successfully (`new PrismaNeon(pool as any)`).
+#### 3. AI Hint Integration ✅
+- Created `AIHintModal` with SSE (Server-Sent Events) streaming support for real-time math hints.
+- Integrated "Gợi ý từ AI" button into the exam interface with context-aware prompts.
+- Added `MathRenderer` consistency across hint modals and results lists.
 
-#### 4. Progress Page — Verified ✅
-- `app/(dashboard)/progress/page.tsx` already exists (666 lines) with ALL requested sections
-- API endpoint `app/api/v1/analytics/overview/route.ts` already exists
-- No changes were needed — page was already built
+#### 4. UI/UX Polishes ✅
+- Fixed critical "Module not found" errors related to `MathRenderer` package paths.
+- Updated `TOPIC_LABELS` to cover all curriculum areas (Derivatives, Integrals, Functions, etc.).
+- Improved sidebar navigation with "Answered", "Skipped", and "Current" status indicators.
 
 ### Module status
 
 | Module | Location | Status | Notes |
 |--------|----------|--------|-------|
-| Auth | `app/(auth)/` | ✅ Working | Login + Register, JWT sessions, bcrypt, raw SQL via neon() |
+| Auth | `app/(auth)/` | ✅ Working | Login + Register, JWT sessions, raw SQL |
 | Dashboard | `app/(dashboard)/dashboard/` | ✅ Working | Landing page with stats |
-| Chat | `app/chat/` | ✅ Working | SSE streaming, KaTeX, standalone module |
-| Progress | `app/(dashboard)/progress/` | ✅ Working | 4 metrics, charts, topic bars, weak topics, history |
-| Practice | `app/(dashboard)/practice/` | 🔲 Exists | Needs verification |
-| Exam | — | 🔲 Not started | API spec defined, no implementation yet |
+| Chat | `app/chat/` | ✅ Working | SSE streaming, KaTeX |
+| Progress | `app/(dashboard)/progress//` | ✅ Working | 4 metrics, charts, topic bars |
+| Exam | `app/exam/` | ✅ Working | Start -> Setup -> Hint -> Submit -> Result |
 | RAG | — | 🔲 Not started | Spec in `docs/AI_CHATBOT.md` |
 
 ### What is NOT done yet (pick up from here next session)
 
-- [ ] Implement Exam module (`app/exam/` + `app/api/v1/exam/`)
 - [ ] Implement RAG pipeline (`lib/rag/`) — embed, search, pipeline, prompts
 - [ ] Connect Chat to real OpenAI API (needs `OPENAI_API_KEY` in `.env`)
-- [ ] Implement Practice page fully (exam generation + submission flow)
-- [ ] Seed database with question bank (`prisma/seed.ts`)
-- [ ] Create `lib/errors.ts` with AppError class + error codes
-- [ ] Create `lib/flags.ts` with feature flag helpers
-- [ ] Add Vitest + Playwright test suites
-- [ ] Delete leftover debug scripts (`scripts/debug-login.ts`, `scripts/debug-login2.ts`)
-- [ ] Update `docs/PROJECT_STATUS.md` to reflect current progress
+- [ ] Seed database with comprehensive question bank
+- [ ] Implement `lib/errors.ts` and refined error boundaries
+- [ ] Add Vitest + Playwright test suites for the core exam flow
+- [ ] Delete leftover debug scripts
+- [ ] Update `docs/PROJECT_STATUS.md`
 
 ### Blockers
 - `OPENAI_API_KEY` not in `.env` — Chat uses mock responses until added
@@ -82,6 +79,7 @@ Cline will read this file, understand the current state, and pick up the next ta
 | 2025-04-10 | Project setup, all docs created, folder structure finalized | Fill .env.local, setup Prisma schema |
 | 2026-04-10 | Auth fix (raw SQL), Chat module built, Router fix, Progress verified | Exam module, RAG pipeline, seed DB |
 | 2026-04-11 | Study Sidebar Navigation, UI logo update, Prisma Neon Pool fix | Exam module, RAG pipeline, seed DB |
+| 2026-04-13 | Exam Module Completion (Generation, Submission, Hints, Results) | RAG pipeline, Seed DB, OpenAI switch |
 
 ---
 

@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { TOPICS as CENTRAL_TOPICS } from '@/lib/constants/topics';
+
+// Map central topics to local format (key instead of id)
+const TOPICS = CENTRAL_TOPICS.map(t => ({ key: t.id, label: t.label }));
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -10,20 +14,6 @@ type ExamMode = 'quick' | 'standard' | 'thpt';
 type Difficulty = 'all' | 'RECOGNITION' | 'COMPREHENSION' | 'APPLICATION' | 'ADVANCED';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-
-const TOPICS = [
-  { key: 'DERIVATIVES', label: 'Đạo hàm' },
-  { key: 'INTEGRALS', label: 'Tích phân' },
-  { key: 'FUNCTION_ANALYSIS', label: 'Hàm số' },
-  { key: 'LIMITS_AND_CONTINUITY', label: 'Giới hạn' },
-  { key: 'COMPLEX_NUMBERS', label: 'Số phức' },
-  { key: 'COMBINATORICS_PROBABILITY', label: 'Xác suất' },
-  { key: 'SEQUENCES', label: 'Dãy số' },
-  { key: 'EXPONENTIAL_LOGARITHM', label: 'Logarit' },
-  { key: 'VOLUMES', label: 'Thể tích' },
-  { key: 'ANALYTIC_GEOMETRY', label: 'Hình học GT' },
-  { key: 'SOLID_GEOMETRY', label: 'Hình học KG' },
-];
 
 const DIFFICULTIES: { key: Difficulty; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
@@ -352,15 +342,15 @@ export default function PracticePage() {
               accent: '#059669',
             },
             {
-              topic: 'COMBINATORICS_PROBABILITY',
-              label: 'Xác suất',
+              topic: 'PROBABILITY',
+              label: 'Xác suất - Tổ hợp',
               reason: 'Điểm yếu cần cải thiện',
               icon: '🎲',
               accent: '#dc2626',
             },
             {
-              topic: 'COMPLEX_NUMBERS',
-              label: 'Số phức',
+              topic: 'EXPONENTIAL_LOG',
+              label: 'Hàm số mũ - Logarit',
               reason: 'Ôn lại kiến thức cơ bản',
               icon: '🔢',
               accent: '#d97706',

@@ -2,44 +2,44 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaNeon } from '@prisma/adapter-neon';
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import ws from 'ws';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+neonConfig.webSocketConstructor = ws;
+
+const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+const pool = new Pool({ connectionString });
+const adapter = new PrismaNeon(pool as any);
+const prisma = new PrismaClient({ adapter });
+
 async function main() {
-  neonConfig.webSocketConstructor = ws;
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    console.error('❌ Lỗi: DATABASE_URL không tồn tại trong file .env');
-    return;
-  }
-
-  const pool = new Pool({ connectionString });
-  const adapter = new PrismaNeon(pool);
-  const prisma = new PrismaClient({ adapter });
-
-  try {
-    console.log('🔍 Đang kiểm tra danh sách người dùng trong CSDL...');
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true
-      }
-    });
-
-    if (users.length === 0) {
-      console.log('ℹ️ CSDL hiện chưa có người dùng nào.');
-    } else {
-      console.table(users);
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      createdAt: true
     }
-  } catch (error) {
-    console.error('❌ Lỗi khi truy vấn CSDL:', error);
-  } finally {
-    await prisma.$disconnect();
+  });
+
+  console.log('--- USER LIST ---');
+  if (users.length === 0) {
+    console.log('No users found in database.');
+  } else {
+    users.forEach(user => {
+      console.log(`[${user.role}] ${user.name} (${user.email}) - Created: ${user.createdAt}`);
+    });
   }
+  console.log('-----------------');
 }
 
-main();
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

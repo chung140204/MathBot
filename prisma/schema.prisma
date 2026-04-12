@@ -1,26 +1,143 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  extensions = [pgvector(map: "vector")]
+  provider = "postgresql"
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      UserRole @default(STUDENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  examAttempts ExamAttempt[]
+  id           String        @id @default(cuid())
+  email        String        @unique
+  password     String
+  name         String
+  role         UserRole      @default(STUDENT)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   chatSessions ChatSession[]
+  examAttempts ExamAttempt[]
 
   @@map("users")
+}
+
+model Question {
+  id                 String         @id @default(cuid())
+  content            String
+  options            Json
+  answer             String
+  explanation        String
+  topic              Topic
+  difficulty         Difficulty
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  answerA            Boolean?
+  answerB            Boolean?
+  answerC            Boolean?
+  answerD            Boolean?
+  correctAnswer      String?
+  format             QuestionFormat @default(MULTIPLE_CHOICE)
+  statementA         String?
+  statementB         String?
+  statementC         String?
+  statementD         String?
+  imageUrl           String?
+  optionAImageUrl    String?
+  optionBImageUrl    String?
+  optionCImageUrl    String?
+  optionDImageUrl    String?
+  questionType       QuestionType   @default(PRACTICE)
+  statementAImageUrl String?
+  statementBImageUrl String?
+  statementCImageUrl String?
+  statementDImageUrl String?
+  examAnswers        ExamAnswer[]
+
+  @@index([topic, difficulty, isActive])
+  @@map("questions")
+}
+
+model ExamAttempt {
+  id             String       @id @default(cuid())
+  userId         String
+  totalScore     Float
+  totalQuestions Int
+  timeTakenSecs  Int
+  topics         Topic[]
+  startedAt      DateTime     @default(now())
+  submittedAt    DateTime     @default(now())
+  answers        ExamAnswer[]
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, submittedAt])
+  @@map("exam_attempts")
+}
+
+model ExamAnswer {
+  id            String      @id @default(cuid())
+  examAttemptId String
+  questionId    String
+  userAnswer    String?
+  isCorrect     Boolean
+  score         Float       @default(0)
+  shortAnswer   String?
+  tfAnswerA     Boolean?
+  tfAnswerB     Boolean?
+  tfAnswerC     Boolean?
+  tfAnswerD     Boolean?
+  examAttempt   ExamAttempt @relation(fields: [examAttemptId], references: [id], onDelete: Cascade)
+  question      Question    @relation(fields: [questionId], references: [id])
+
+  @@index([examAttemptId])
+  @@map("exam_answers")
+}
+
+model ExamSet {
+  id             String   @id @default(cuid())
+  title          String   @default("Untitled Exam")
+  examYear       Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  pointPerMC     Float    @default(0.2)
+  pointPerSA     Float    @default(0.5)
+  pointPerTFItem Float    @default(0.25)
+
+  @@map("exam_sets")
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  userId    String
+  title     String        @default("New conversation")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  chatSessionId String
+  role          MessageRole
+  content       String
+  createdAt     DateTime    @default(now())
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+
+  @@index([chatSessionId, createdAt])
+  @@map("chat_messages")
+}
+
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  content   String
+  topic     Topic
+  source    String
+  createdAt DateTime @default(now())
+
+  @@map("knowledge_chunks")
 }
 
 enum UserRole {
@@ -28,34 +145,28 @@ enum UserRole {
   ADMIN
 }
 
-model Question {
-  id          String     @id @default(cuid())
-  content     String
-  options     Json
-  answer      String
-  explanation String
-  topic       Topic
-  difficulty  Difficulty
-  isActive    Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+enum QuestionFormat {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+}
 
-  examAnswers ExamAnswer[]
-
-  @@index([topic, difficulty, isActive])
-  @@map("questions")
+enum QuestionType {
+  PRACTICE
+  EXAM_SET
+  THPT_EXAM
 }
 
 enum Topic {
-  LIMITS_AND_CONTINUITY
   DERIVATIVES
   INTEGRALS
+  FUNCTIONS
+  LIMITS
   COMPLEX_NUMBERS
-  VOLUMES
-  COMBINATORICS_PROBABILITY
+  PROBABILITY
   SEQUENCES
-  EXPONENTIAL_LOGARITHM
-  FUNCTION_ANALYSIS
+  EXPONENTIAL_LOG
+  VOLUME
   ANALYTIC_GEOMETRY
   SOLID_GEOMETRY
 }
@@ -67,74 +178,7 @@ enum Difficulty {
   ADVANCED
 }
 
-model ExamAttempt {
-  id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  totalScore     Int
-  totalQuestions Int
-  timeTakenSecs  Int
-  topics         Topic[]
-  startedAt      DateTime @default(now())
-  submittedAt    DateTime @default(now())
-
-  answers ExamAnswer[]
-
-  @@index([userId, submittedAt])
-  @@map("exam_attempts")
-}
-
-model ExamAnswer {
-  id            String      @id @default(cuid())
-  examAttemptId String
-  examAttempt   ExamAttempt @relation(fields: [examAttemptId], references: [id], onDelete: Cascade)
-  questionId    String
-  question      Question    @relation(fields: [questionId], references: [id])
-  userAnswer    String?
-  isCorrect     Boolean
-
-  @@index([examAttemptId])
-  @@map("exam_answers")
-}
-
-model ChatSession {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String   @default("New conversation")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  messages ChatMessage[]
-
-  @@index([userId, updatedAt])
-  @@map("chat_sessions")
-}
-
-model ChatMessage {
-  id            String      @id @default(cuid())
-  chatSessionId String
-  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
-  role          MessageRole
-  content       String
-  createdAt     DateTime    @default(now())
-
-  @@index([chatSessionId, createdAt])
-  @@map("chat_messages")
-}
-
 enum MessageRole {
   user
   assistant
-}
-
-model KnowledgeChunk {
-  id        String                       @id @default(cuid())
-  content   String
-  topic     Topic
-  source    String
-  embedding Unsupported("vector(1536)")? // text-embedding-3-small output
-  createdAt DateTime                     @default(now())
-
-  @@map("knowledge_chunks")
 }

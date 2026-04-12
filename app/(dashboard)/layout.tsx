@@ -8,19 +8,7 @@ import { useSession, signOut } from 'next-auth/react';
 
 // ─── Constants & Config ──────────────────────────────────────────────────────
 
-const TOPIC_CONFIG = [
-  { key: 'DERIVATIVES', label: 'Đạo hàm', color: 'green', mockAcc: 88 },
-  { key: 'INTEGRALS', label: 'Tích phân', color: 'blue', mockAcc: 75 },
-  { key: 'FUNCTION_ANALYSIS', label: 'Hàm số', color: 'orange', mockAcc: 62 },
-  { key: 'COMBINATORICS_PROBABILITY', label: 'Xác suất', color: 'red', mockAcc: 45 },
-  { key: 'COMPLEX_NUMBERS', label: 'Số phức', color: 'red', mockAcc: 38 },
-  { key: 'EXPONENTIAL_LOGARITHM', label: 'Logarit', color: 'blue', mockAcc: 80 },
-  { key: 'SOLID_GEOMETRY', label: 'Hình học KG', color: 'purple', mockAcc: 70 },
-  { key: 'SEQUENCES', label: 'Dãy số', color: 'green', mockAcc: 72 },
-  { key: 'LIMITS_AND_CONTINUITY', label: 'Giới hạn', color: 'purple', mockAcc: 65 },
-  { key: 'ANALYTIC_GEOMETRY', label: 'Hình học GT', color: 'orange', mockAcc: 55 },
-  { key: 'VOLUMES', label: 'Thể tích', color: 'green', mockAcc: 78 },
-];
+import { TOPIC_CONFIG, TOPIC_SUBSECTIONS } from '@/lib/constants/topics';
 
 const COLOR_MAP = {
   green: { dot: 'bg-[#059669]', pillBg: 'bg-[#d1fae5]', pillText: 'text-[#059669]', activeBg: 'bg-[#e6f7f2]', activeText: 'text-[#059669]' },
@@ -30,19 +18,6 @@ const COLOR_MAP = {
   purple: { dot: 'bg-purple-500', pillBg: 'bg-purple-100', pillText: 'text-purple-700', activeBg: 'bg-purple-50', activeText: 'text-purple-700' },
 };
 
-const TOPIC_SUBSECTIONS: Record<string, string[]> = {
-  DERIVATIVES: ['Định nghĩa', 'Quy tắc tính', 'Ứng dụng', 'Bài tập mẫu'],
-  INTEGRALS: ['Nguyên hàm', 'Tích phân', 'Ứng dụng', 'Phương pháp tính'],
-  FUNCTION_ANALYSIS: ['Khảo sát', 'Cực trị', 'Tiệm cận', 'Tương giao'],
-  COMBINATORICS_PROBABILITY: ['Tổ hợp', 'Xác suất', 'Biến ngẫu nhiên'],
-  COMPLEX_NUMBERS: ['Định nghĩa', 'Phép toán', 'Biểu diễn', 'Phương trình'],
-  EXPONENTIAL_LOGARITHM: ['Hàm mũ', 'Logarit', 'Phương trình'],
-  SOLID_GEOMETRY: ['Quan hệ song song', 'Quan hệ vuông góc'],
-  SEQUENCES: ['Cấp số cộng', 'Cấp số nhân', 'Quy nạp'],
-  LIMITS_AND_CONTINUITY: ['Dãy số', 'Hàm số', 'Liên tục', 'Bài tập'],
-  ANALYTIC_GEOMETRY: ['Tọa độ Oxy', 'Oxyz', 'Mặt cầu'],
-  VOLUMES: ['Khối đa diện', 'Khối tròn xoay'],
-};
 
 const MAIN_MENU = [
   {
@@ -131,7 +106,7 @@ function NavLink({ href, label, icon, collapsed }: { href: string; label: string
 function TopicMenu({ realStats, isVisible }: { realStats: Record<string, number> | null; isVisible: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeTopic = searchParams.get('topic') || 'DERIVATIVES';
+  const activeTopic = searchParams.get('topic') || TOPIC_CONFIG[0].key;
   const activeSubIndex = parseInt(searchParams.get('sub') || '0', 10);
   
   const [openTopic, setOpenTopic] = useState<string | null>(activeTopic);
@@ -255,10 +230,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!session?.user) return null;
 
-  const user = session.user as { name?: string | null; id?: string; email?: string | null };
+  const user = session.user as { name?: string | null; id?: string; email?: string | null; role?: string };
   const initials = user.name
     ? user.name.split(' ').slice(-2).map((w) => w[0]).join('').toUpperCase()
     : 'U';
+
+  const menuItems = [...MAIN_MENU];
+  if (user.role === 'ADMIN') {
+    menuItems.unshift({
+      href: '/admin',
+      label: 'Quản trị hệ thống',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 15v2m-6 4h12l-4-4H8l-4 4zM7 10h10M7 7h10M7 13h10" />
+        </svg>
+      ),
+    });
+  }
 
   return (
     <div className="flex h-screen bg-[#f0fdf9] font-sans overflow-hidden">
@@ -301,7 +289,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="mb-4">
             {!isCollapsed && <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2 mb-1.5">MENU</p>}
             <ul className="space-y-0.5">
-              {MAIN_MENU.map((link) => (
+              {menuItems.map((link) => (
                 <li key={link.href}>
                   {link.href === '/study' && pathname.startsWith('/study') && !isCollapsed ? (
                     <button

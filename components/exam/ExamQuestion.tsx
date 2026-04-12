@@ -1,14 +1,7 @@
 'use client';
 
 import MathRenderer from './MathRenderer';
-
-interface QuestionData {
-  id: string;
-  content: string;
-  options: { A: string; B: string; C: string; D: string };
-  topic: string;
-  difficulty: string;
-}
+import QuestionCard, { QuestionData } from './QuestionCard';
 
 interface ExamQuestionProps {
   question: QuestionData;
@@ -22,8 +15,6 @@ interface ExamQuestionProps {
   hasPrev: boolean;
   hasNext: boolean;
 }
-
-const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
 
 const TOPIC_LABELS: Record<string, string> = {
   DERIVATIVE: 'Đạo hàm',
@@ -99,63 +90,12 @@ export default function ExamQuestion({
 
       {/* Question content */}
       <div className="flex-1 overflow-y-auto px-8 py-8">
-        <div className="max-w-3xl mx-auto">
-          {/* Question label */}
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
-            Câu hỏi {questionNumber}
-          </p>
-
-          {/* Question text */}
-          <div className="text-lg text-gray-800 leading-relaxed mb-2">
-            <MathRenderer content={question.content} />
-          </div>
-
-          {/* Math block area (if question has block math) */}
-          {question.content.includes('$$') && (
-            <div className="my-4 pl-4 border-l-4 border-[#059669] bg-white py-4 rounded-r-xl shadow-sm">
-              <MathRenderer content={question.content.match(/\$\$[\s\S]*?\$\$/g)?.join(' ') || ''} />
-            </div>
-          )}
-
-          {/* Options */}
-          <div className="space-y-3 mt-8">
-            {OPTION_LETTERS.map((letter) => {
-              const isSelected = selectedAnswer === letter;
-
-              return (
-                <button
-                  key={letter}
-                  onClick={() => onSelectAnswer(letter)}
-                  className={`w-full flex items-start gap-4 p-5 rounded-2xl text-left transition-all border-2
-                    ${
-                      isSelected
-                        ? 'border-[#059669] bg-[#f0fdf9] shadow-md shadow-[#059669]/10'
-                        : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm'
-                    }
-                  `}
-                >
-                  {/* Letter badge */}
-                  <span
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 transition-all
-                      ${
-                        isSelected
-                          ? 'bg-[#059669] text-white'
-                          : 'bg-gray-100 text-gray-500'
-                      }
-                    `}
-                  >
-                    {letter}
-                  </span>
-
-                  {/* Option text */}
-                  <span className={`text-base pt-1.5 leading-relaxed ${isSelected ? 'text-gray-900 font-medium' : 'text-gray-700'}`}>
-                    <MathRenderer content={question.options[letter]} />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <QuestionCard
+          question={question}
+          questionNumber={questionNumber}
+          selectedAnswer={selectedAnswer}
+          onSelectAnswer={onSelectAnswer}
+        />
       </div>
 
       {/* Footer */}

@@ -14,7 +14,7 @@ _Last updated: 2025-04-10_
 |-----------|-------------|--------|
 | Docs & architecture finalized | Week 1 | ✅ Done |
 | Core setup (DB, Auth, schema) | Week 2 | ✅ Done |
-| Exam module complete | Week 3–4 | ⬜ Not started |
+| Exam module complete | Week 3–4 | ✅ Done |
 | Chat + RAG complete | Week 5–6 | ⬜ Not started |
 | Testing & evaluation | Week 7 | ⬜ Not started |
 | Report + defense prep | Week 8 | ⬜ Not started |
@@ -46,11 +46,11 @@ _Last updated: 2025-04-10_
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Seed question bank | ⬜ | Minimum 200 questions across all topics |
-| `GET /api/v1/exam/generate` | ⬜ | |
-| Exam taking UI | ⬜ | Question navigation, option selection |
-| `POST /api/v1/exam/submit` | ⬜ | Auto-scoring, persist attempt |
-| Results page with explanations | ⬜ | LaTeX rendering for explanations |
+| Seed question bank | ✅ | Excel upload implemented with MULTIPLE_CHOICE, TRUE_FALSE, SHORT_ANSWER support |
+| `GET /api/v1/exam/generate` | ✅ | |
+| Exam taking UI | ✅ | Support Part I, II, III (2025 format) |
+| `POST /api/v1/exam/submit` | ✅ | Partial scoring for TF questions |
+| Results page with explanations | ✅ | LaTeX rendering + format-specific feedback |
 | `GET /api/v1/exam/history` | ⬜ | Paginated |
 
 ## Chat module
@@ -72,11 +72,11 @@ _Last updated: 2025-04-10_
 
 | Task | Status | Notes |
 |------|--------|-------|
-| `GET /api/v1/analytics/overview` | ⬜ | |
-| Dashboard page | ⬜ | |
-| Topic accuracy chart | ⬜ | Recharts bar chart |
-| Score trend chart | ⬜ | Recharts line chart |
-| Weak topics highlight | ⬜ | Topics below 60% accuracy |
+| `GET /api/v1/analytics/overview` | ✅ | Updated with comprehensive calculated stats |
+| Dashboard page | ✅ | Modernized with metrics and interactive charts |
+| Topic accuracy chart | ✅ | Recharts implemented with color codes |
+| Score trend chart | ✅ | Weekly score bar chart implemented |
+| Weak topics highlight | ✅ | Auto-calculated for accuracy < 50% |
 
 ## Testing
 
@@ -107,3 +107,4 @@ _Last updated: 2025-04-10_
 | Date | Change |
 |------|--------|
 | 2025-04-10 | Project initialized, docs written |
+| 2025-04-12 | Integrated THPT 2025 format (TF, Short Answer) and finalized scoring |

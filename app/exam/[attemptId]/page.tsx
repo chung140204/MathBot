@@ -9,7 +9,12 @@ import ExamQuestion from '@/components/exam/ExamQuestion';
 interface Question {
   id: string;
   content: string;
-  options: { A: string; B: string; C: string; D: string };
+  format: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'SHORT_ANSWER';
+  options?: { A: string; B: string; C: string; D: string };
+  statementA?: string;
+  statementB?: string;
+  statementC?: string;
+  statementD?: string;
   topic: string;
   difficulty: string;
 }
@@ -38,6 +43,7 @@ const MOCK_QUESTIONS: Question[] = [
   {
     id: 'q1',
     content: 'Tính đạo hàm của hàm số $f(x) = x^3 - 3x^2 + 2x - 1$.',
+    format: 'MULTIPLE_CHOICE',
     options: {
       A: '$3x^2 - 6x + 2$',
       B: '$3x^2 - 6x - 2$',
@@ -49,236 +55,23 @@ const MOCK_QUESTIONS: Question[] = [
   },
   {
     id: 'q2',
-    content: 'Tìm nguyên hàm của $f(x) = 2x + 3$.',
-    options: {
-      A: '$x^2 + 3x + C$',
-      B: '$x^2 + 3 + C$',
-      C: '$2x^2 + 3x + C$',
-      D: '$x^2 - 3x + C$',
-    },
-    topic: 'INTEGRAL',
-    difficulty: 'EASY',
+    content: 'Cho hàm số $f(x) = x^3 - 3x + 2$. Xét tính đúng/sai của các phát biểu sau:',
+    format: 'TRUE_FALSE',
+    statementA: 'Hàm số đồng biến trên khoảng $(2; +\\infty)$.',
+    statementB: 'Hàm số nghịch biến trên khoảng $(-1; 1)$.',
+    statementC: 'Đồ thị hàm số có hai điểm cực trị.',
+    statementD: 'Giá trị cực đại của hàm số bằng $4$.',
+    topic: 'DERIVATIVE',
+    difficulty: 'MEDIUM',
   },
   {
     id: 'q3',
-    content: 'Giải phương trình $\\log_2(x+1) = 3$.',
-    options: {
-      A: '$x = 7$',
-      B: '$x = 8$',
-      C: '$x = 6$',
-      D: '$x = 9$',
-    },
-    topic: 'LOGARITHM',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q4',
-    content: 'Tính $\\int_0^1 x^2 \\, dx$.',
-    options: {
-      A: '$\\frac{1}{3}$',
-      B: '$\\frac{1}{2}$',
-      C: '$1$',
-      D: '$\\frac{2}{3}$',
-    },
-    topic: 'INTEGRAL',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q5',
-    content: 'Cho hàm số $f(x) = x^4 - 2x^2 + 1$. Tìm giá trị nhỏ nhất của hàm số.',
-    options: {
-      A: '$0$',
-      B: '$1$',
-      C: '$-1$',
-      D: '$2$',
-    },
+    content: 'Tìm giá trị nguyên nhỏ nhất của tham số $m$ để hàm số $y = x^3 - 3x^2 + mx - 1$ đồng biến trên $\\mathbb{R}$.',
+    format: 'SHORT_ANSWER',
     topic: 'DERIVATIVE',
     difficulty: 'HARD',
   },
-  {
-    id: 'q6',
-    content: 'Số phức $z = 3 + 4i$ có mô-đun bằng bao nhiêu?',
-    options: {
-      A: '$5$',
-      B: '$7$',
-      C: '$\\sqrt{7}$',
-      D: '$25$',
-    },
-    topic: 'COMPLEX_NUMBER',
-    difficulty: 'EASY',
-  },
-  {
-    id: 'q7',
-    content: 'Xác suất để gieo một xúc xắc ra mặt chẵn là bao nhiêu?',
-    options: {
-      A: '$\\frac{1}{2}$',
-      B: '$\\frac{1}{3}$',
-      C: '$\\frac{1}{6}$',
-      D: '$\\frac{2}{3}$',
-    },
-    topic: 'PROBABILITY',
-    difficulty: 'EASY',
-  },
-  {
-    id: 'q8',
-    content:
-      'Cho hàm số $f(x) = x^3 - 3x^2 + 4$. Tìm tất cả các giá trị của x để hàm số đạt cực trị.',
-    options: {
-      A: '$x = 0$ và $x = 2$ (cực đại tại $x = 0$, cực tiểu tại $x = 2$)',
-      B: '$x = 0$ và $x = 2$ (cực tiểu tại $x = 0$, cực đại tại $x = 2$)',
-      C: 'Chỉ $x = 0$ là điểm cực trị',
-      D: '$x = 0$ và $x = 2$ (cực đại tại $x = 2$, cực tiểu tại $x = 0$)',
-    },
-    topic: 'DERIVATIVE',
-    difficulty: 'HARD',
-  },
-  {
-    id: 'q9',
-    content: 'Tính $C_5^2$.',
-    options: {
-      A: '$10$',
-      B: '$20$',
-      C: '$5$',
-      D: '$15$',
-    },
-    topic: 'COMBINATORICS',
-    difficulty: 'EASY',
-  },
-  {
-    id: 'q10',
-    content: 'Cho cấp số cộng có $u_1 = 3$, $d = 2$. Tìm $u_{10}$.',
-    options: {
-      A: '$21$',
-      B: '$23$',
-      C: '$19$',
-      D: '$25$',
-    },
-    topic: 'SEQUENCE',
-    difficulty: 'EASY',
-  },
-  {
-    id: 'q11',
-    content: 'Tính $\\int_0^{\\pi} \\sin(x) \\, dx$.',
-    options: {
-      A: '$2$',
-      B: '$0$',
-      C: '$1$',
-      D: '$-2$',
-    },
-    topic: 'INTEGRAL',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q12',
-    content: 'Cho $z = 1 + i$. Tính $z^2$.',
-    options: {
-      A: '$2i$',
-      B: '$2$',
-      C: '$-2i$',
-      D: '$1 + 2i$',
-    },
-    topic: 'COMPLEX_NUMBER',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q13',
-    content: 'Tìm đạo hàm của $f(x) = \\ln(2x + 1)$.',
-    options: {
-      A: '$\\frac{2}{2x+1}$',
-      B: '$\\frac{1}{2x+1}$',
-      C: '$\\frac{1}{x}$',
-      D: '$\\frac{2}{x+1}$',
-    },
-    topic: 'DERIVATIVE',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q14',
-    content: 'Giải bất phương trình $\\log_3(x) > 2$.',
-    options: {
-      A: '$x > 9$',
-      B: '$x > 6$',
-      C: '$x > 3$',
-      D: '$x > 8$',
-    },
-    topic: 'LOGARITHM',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q15',
-    content: 'Thể tích khối cầu bán kính $R$ là bao nhiêu?',
-    options: {
-      A: '$\\frac{4}{3}\\pi R^3$',
-      B: '$4\\pi R^2$',
-      C: '$\\frac{2}{3}\\pi R^3$',
-      D: '$\\pi R^3$',
-    },
-    topic: 'GEOMETRY',
-    difficulty: 'EASY',
-  },
-  {
-    id: 'q16',
-    content:
-      'Cho $f(x) = e^{2x}$. Tính $f\'(x)$.',
-    options: {
-      A: '$2e^{2x}$',
-      B: '$e^{2x}$',
-      C: '$2xe^{2x}$',
-      D: '$e^{x}$',
-    },
-    topic: 'DERIVATIVE',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q17',
-    content:
-      'Gieo 2 xúc xắc. Xác suất để tổng bằng 7 là bao nhiêu?',
-    options: {
-      A: '$\\frac{1}{6}$',
-      B: '$\\frac{1}{12}$',
-      C: '$\\frac{5}{36}$',
-      D: '$\\frac{7}{36}$',
-    },
-    topic: 'PROBABILITY',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q18',
-    content: 'Tìm số hạng tổng quát của cấp số nhân: $2, 6, 18, 54, ...$',
-    options: {
-      A: '$u_n = 2 \\cdot 3^{n-1}$',
-      B: '$u_n = 2 \\cdot 3^{n}$',
-      C: '$u_n = 3 \\cdot 2^{n-1}$',
-      D: '$u_n = 6^{n-1}$',
-    },
-    topic: 'SEQUENCE',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q19',
-    content: 'Tính diện tích hình phẳng giới hạn bởi $y = x^2$ và trục $Ox$ trên đoạn $[0, 2]$.',
-    options: {
-      A: '$\\frac{8}{3}$',
-      B: '$4$',
-      C: '$\\frac{4}{3}$',
-      D: '$2$',
-    },
-    topic: 'INTEGRAL',
-    difficulty: 'HARD',
-  },
-  {
-    id: 'q20',
-    content:
-      'Cho hình chóp $S.ABCD$ có đáy $ABCD$ là hình vuông cạnh $a$, $SA \\perp (ABCD)$, $SA = a\\sqrt{2}$. Tính thể tích khối chóp.',
-    options: {
-      A: '$\\frac{a^3\\sqrt{2}}{3}$',
-      B: '$\\frac{a^3}{3}$',
-      C: '$a^3\\sqrt{2}$',
-      D: '$\\frac{a^3\\sqrt{2}}{6}$',
-    },
-    topic: 'GEOMETRY',
-    difficulty: 'EXPERT',
-  },
+  // Add more mixed questions if needed
 ];
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
@@ -389,7 +182,7 @@ export default function ExamPage() {
       dispatch({ type: 'SUBMIT_DONE' });
 
       // Navigate to results page (will be implemented later)
-      window.location.href = `/exam/${result.attemptId}/result`;
+      window.location.href = `/exam/${result.attemptId}/results`;
     } catch (error) {
       console.error('[exam] Submit error:', error);
       alert('Không thể kết nối đến server. Vui lòng thử lại.');

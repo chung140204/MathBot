@@ -51,6 +51,12 @@ enum UserRole {
   ADMIN   // Reserved for future admin dashboard
 }
 
+enum QuestionFormat {
+  MULTIPLE_CHOICE  // Phần I — ABCD chọn 1 (đề cũ ≤2024: 50 câu)
+  TRUE_FALSE       // Phần II — 4 ý Đúng/Sai (đề 2025+)
+  SHORT_ANSWER     // Phần III — điền số (đề 2025+)
+}
+
 // ─── QUESTION BANK ────────────────────────────────────────────────────
 
 model Question {
@@ -60,6 +66,20 @@ model Question {
   answer      String     // "A" | "B" | "C" | "D"
   explanation String     // Step-by-step explanation, may contain LaTeX
   topic       Topic
+  format         QuestionFormat  @default(MULTIPLE_CHOICE)
+
+  // TRUE_FALSE fields (Phần II)
+  statementA     String?
+  statementB     String?
+  statementC     String?
+  statementD     String?
+  answerA        Boolean?
+  answerB        Boolean?
+  answerC        Boolean?
+  answerD        Boolean?
+
+  // SHORT_ANSWER fields (Phần III)
+  correctAnswer  String?
   difficulty  Difficulty
   isActive    Boolean    @default(true)  // Soft delete — never hard delete questions
   createdAt   DateTime   @default(now())
@@ -120,8 +140,37 @@ model ExamAnswer {
   userAnswer    String?     // null if skipped
   isCorrect     Boolean
 
+  // TRUE_FALSE answers
+  tfAnswerA      Boolean?
+  tfAnswerB      Boolean?
+  tfAnswerC      Boolean?
+  tfAnswerD      Boolean?
+
+  // SHORT_ANSWER
+  shortAnswer    String?
+
+  // Score per question (for partial scoring in TRUE_FALSE)
+  score          Float    @default(0)
+
   @@index([examAttemptId])
   @@map("exam_answers")
+}
+
+model ExamSet {
+  id        String   @id @default(cuid())
+  title     String   @default("Untitled Exam")
+  examYear  Int?     // 2025, 2024, 2023...
+  
+  // Scoring configuration
+  pointPerMC      Float   @default(0.2)
+  pointPerTFItem  Float   @default(0.25)
+  pointPerSA      Float   @default(0.5)
+
+  // Dùng để detect format khi render
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("exam_sets")
 }
 
 // ─── CHAT ─────────────────────────────────────────────────────────────
@@ -178,8 +227,14 @@ model KnowledgeChunk {
 ```
 User ──< ExamAttempt ──< ExamAnswer >── Question
 User ──< ChatSession ──< ChatMessage
+ExamSet (standalone, stores exam format/years)
 KnowledgeChunk  (standalone, used by RAG pipeline only)
 ```
+
+### Question Format & Scoring Rules (THPT 2025)
+- **MULTIPLE_CHOICE**: đúng = 1 điểm, sai = 0
+- **TRUE_FALSE**: 1ý=0.1đ, 2ý=0.25đ, 3ý=0.5đ, 4ý=1đ
+- **SHORT_ANSWER**: khớp số = 0.5đ, sai = 0
 
 ---
 

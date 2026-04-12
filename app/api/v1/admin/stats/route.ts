@@ -5,10 +5,10 @@ import prisma from '@/lib/db';
 import { startOfToday } from 'date-fns';
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
   try {
     const today = startOfToday();
@@ -53,7 +53,7 @@ export async function GET() {
       examsTrend: '+18%',
       aiTrend: '+24%',
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Admin Stats Error:', error);
     return NextResponse.json({ 
       totalUsers: 0, totalQuestions: 0, examsToday: 0, aiChatsToday: 0,

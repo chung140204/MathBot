@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { TOPIC_LABEL } from '@/lib/constants/topics';
+import { Topic } from '@prisma/client';
 import {
   BarChart,
   Bar,
@@ -54,20 +56,6 @@ type OverviewData = {
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-
-const TOPIC_LABELS: Record<string, string> = {
-  LIMITS_AND_CONTINUITY: 'Giới hạn',
-  DERIVATIVES: 'Đạo hàm',
-  INTEGRALS: 'Tích phân',
-  COMPLEX_NUMBERS: 'Số phức',
-  VOLUMES: 'Thể tích',
-  COMBINATORICS_PROBABILITY: 'Xác suất',
-  SEQUENCES: 'Dãy số',
-  EXPONENTIAL_LOGARITHM: 'Logarit',
-  FUNCTION_ANALYSIS: 'Hàm số',
-  ANALYTIC_GEOMETRY: 'Hình học GT',
-  SOLID_GEOMETRY: 'Hình học KG',
-};
 
 const VN_DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const STREAK_GOAL = 10;
@@ -508,7 +496,7 @@ export default function ProgressPage() {
                 .map((t) => (
                   <div key={t.topic} className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-gray-700 w-[130px] flex-shrink-0 truncate">
-                      {TOPIC_LABELS[t.topic] ?? t.topic}
+                      {TOPIC_LABEL[t.topic as Topic] ?? t.topic}
                     </span>
                     <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
@@ -561,7 +549,7 @@ export default function ProgressPage() {
                         className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dotBgClass(pct)}`}
                       />
                       <span className="text-xs font-semibold text-gray-700">
-                        {TOPIC_LABELS[topic] ?? topic}
+                        {TOPIC_LABEL[topic as Topic] ?? topic}
                       </span>
                     </div>
                     <span
@@ -611,7 +599,7 @@ export default function ProgressPage() {
                 );
                 const topicLabel =
                   attempt.topics.length === 1
-                    ? TOPIC_LABELS[attempt.topics[0]] ?? attempt.topics[0]
+                    ? TOPIC_LABEL[attempt.topics[0] as Topic] ?? attempt.topics[0]
                     : `${attempt.topics.length} chủ đề`;
                 return (
                   <div
