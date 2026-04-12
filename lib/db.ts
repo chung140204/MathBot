@@ -7,17 +7,26 @@ neonConfig.webSocketConstructor = ws;
 
 const prismaClientSingleton = () => {
   const connectionString = process.env.DATABASE_URL;
+  
   if (!connectionString) {
+    const errorMsg = 'DATABASE_URL is not set in environment variables';
+    console.error(`[Prisma DB] ${errorMsg}`);
     if (process.env.NODE_ENV === 'production') {
-      throw new Error('DATABASE_URL is not set');
+      throw new Error(errorMsg);
     }
-    // Fallback or just empty
+  }
+
+  if (process.env.NODE_ENV !== 'production' && connectionString) {
+    console.log(`[Prisma DB] Initializing with connection string (length: ${connectionString.length})`);
   }
   
   const pool = new Pool({ connectionString });
   const adapter = new PrismaNeon(pool as any);
 
-  return new PrismaClient({ adapter });
+  return new PrismaClient({ 
+    adapter,
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  });
 };
 
 declare global {
