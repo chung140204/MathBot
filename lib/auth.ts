@@ -3,6 +3,10 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { neon } from '@neondatabase/serverless';
 
+if (!process.env.NEXTAUTH_SECRET) {
+  console.warn('⚠️ [NextAuth] NEXTAUTH_SECRET is not defined in environment variables');
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({

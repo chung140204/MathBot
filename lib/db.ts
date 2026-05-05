@@ -1,5 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaNeon } from '@prisma/adapter-neon';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
+
+// Required for Neon WebSocket connection in Node.js/standard environment
+if (typeof window === 'undefined') {
+  neonConfig.webSocketConstructor = ws;
+}
 
 const prismaClientSingleton = () => {
   const connectionString = process.env.DATABASE_URL;
@@ -10,7 +17,11 @@ const prismaClientSingleton = () => {
     throw new Error(errorMsg);
   }
 
-  const adapter = new PrismaNeon({ connectionString });
+  // Remove potential quotes and ensure it's a string
+  const cleanConnectionString = connectionString.replace(/^["']|["']$/g, '');
+
+  const pool = new Pool({ connectionString: cleanConnectionString });
+  const adapter = new PrismaNeon(pool);
 
   return new PrismaClient({
     adapter,

@@ -3,193 +3,414 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import MessageBubble from './MessageBubble';
+import MathInput from './MathInput';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  metadata?: any;
 }
 
-const DEMO_MESSAGES: Message[] = [
-  {
-    role: 'user',
-    content: 'Tính đạo hàm của f(x) = sin(x^2)',
-  },
-  {
-    role: 'assistant',
-    content: 'Áp dụng Chain Rule cho f(x) = sin(x^2):',
-    metadata: {
-      math: '[f(g(x))]\' = f\'(g(x)) \\cdot g\'(x)',
-      steps: [
-        { id: 1, content: 'Đặt u = x² → f = sin(u)' },
-        { id: 2, content: 'Đạo hàm ngoài: (sin u)\' = cos(x²)' },
-        { id: 3, content: 'Đạo hàm trong: (x²)\' = 2x' },
-      ],
-      result: "f'(x) = 2x \\cdot cos(x^2)",
-    },
-  },
+interface ChatWindowProps {
+  userId?: string;
+  sessionId: string | null;
+  onSessionCreated: (id: string) => void;
+  onMessageSent: () => void;
+}
+
+const SUGGESTIONS = [
+  'Tính đạo hàm của f(x) = sin(x²)',
+  'Giải phương trình mũ: 2^x = 8',
+  'Tìm nguyên hàm của ∫x·eˣ dx',
+  'Tính xác suất bài toán tổ hợp',
 ];
 
-export default function ChatWindow() {
+export default function ChatWindow({
+  userId,
+  sessionId,
+  onSessionCreated,
+  onMessageSent,
+}: ChatWindowProps) {
   const { data: session } = useSession();
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Xin chào bạn! 👋 Hôm nay bạn cần giải bài gì? Tôi có thể giải thích từng bước rõ ràng nhé!' },
-    ...DEMO_MESSAGES,
-  ]);
-  const hasGreeted = useRef(false);
-
-  useEffect(() => {
-    const name = (session?.user as { name?: string })?.name;
-    if (name && !hasGreeted.current) {
-      const firstName = name.split(' ').pop() ?? name;
-      hasGreeted.current = true;
-      setMessages((prev) => [
-        { ...prev[0], content: `Xin chào ${firstName}! 👋 Hôm nay bạn cần giải bài gì? Tôi có thể giải thích từng bước rõ ràng nhé!` },
-        ...prev.slice(1),
-      ]);
-    }
-  }, [session]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [thinkingContent, setThinkingContent] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingExpanded, setThinkingExpanded] = useState(false);
   const [input, setInput] = useState('');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Load messages when session changes
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (!sessionId) {
+      setMessages([]);
+      return;
     }
-  }, [messages]);
+    
+    // Avoid overwriting active stream with history fetch
+    if (isStreaming) return;
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input.trim() || isStreaming) return;
+    setIsLoadingHistory(true);
+    fetch(`/api/v1/chat/sessions?sessionId=${sessionId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setMessages(data.map((m) => ({ 
+            role: m.role as 'user' | 'assistant', 
+            content: m.content 
+          })));
+        } else {
+          console.error("Dữ liệu lịch sử không hợp lệ hoặc lỗi:", data);
+          setMessages([]);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setIsLoadingHistory(false));
+  }, [sessionId, isStreaming]); // Added isStreaming to dependencies for safe synchronization
 
-    const userMessage: Message = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMessage]);
+  // Improved Auto-scroll for dynamic content (Math, Images)
+  useEffect(() => {
+    const scrollToBottom = () => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTo({
+          top: scrollRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    };
+
+    // Immediate scroll on data change
+    scrollToBottom();
+
+    // Secondary scroll after a short delay for Math/Image rendering
+    const timer = setTimeout(scrollToBottom, 100);
+    return () => clearTimeout(timer);
+  }, [messages, streamingContent, isThinking]);
+
+  // Auto-resize textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    }
+  };
+
+  const sendMessage = async (
+    text: string, 
+    imageBase64: string | null = selectedImage,
+    overrideHistory?: Message[]
+  ) => {
+    if ((!text.trim() && !imageBase64) || isStreaming) return;
+
+    // Attach image directly into the text using Markdown if there's an image
+    // This allows it to be displayed in MessageBubble and stored in DB effortlessly
+    let contentToSend = text.trim();
+    if (imageBase64) {
+      contentToSend = `![image](${imageBase64})\n\n${contentToSend}`;
+    }
+
+    const userMsg: Message = { role: 'user', content: contentToSend };
+    const baseHistory = overrideHistory || messages;
+    const history = [...baseHistory, userMsg];
+    setMessages(history);
     setInput('');
+    setSelectedImage(null);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setIsStreaming(true);
 
+    // Setup AbortController
+    abortControllerRef.current = new AbortController();
+    let accumulated = '';
+
+    // Call API (we also send the raw imageBase64 separately so backend can process it nicely with the Vision model)
     try {
-      const response = await fetch('/api/v1/chat', {
+      const res = await fetch('/chat/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
+        body: JSON.stringify({ messages: history, sessionId, userId, imageBase64 }),
+        signal: abortControllerRef.current.signal,
       });
 
-      if (!response.ok) throw new Error('Failed to fetch');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("API Error details:", errorText);
+        throw new Error(`API Error ${res.status}: ${errorText}`);
+      }
 
-      const reader = response.body?.getReader();
+      const reader = res.body!.getReader();
       const decoder = new TextDecoder();
-      let assistantMessage: Message = { role: 'assistant', content: '' };
-      setMessages((prev) => [...prev, assistantMessage]);
 
       while (true) {
-        const { done, value } = await reader!.read();
+        const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') break;
-            
-            try {
-              const { content } = JSON.parse(data);
-              assistantMessage.content += content;
-              setMessages((prev) => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { ...assistantMessage };
-                return updated;
-              });
-            } catch (e) {
-              // Ignore parse errors for partial chunks
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6);
+          if (raw === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.event === 'session') {
+              onSessionCreated(parsed.sessionId);
+            } else if (parsed.event === 'thinking_start') {
+              setIsThinking(true);
+              setThinkingExpanded(true);
+            } else if (parsed.event === 'thinking_end') {
+              setIsThinking(false);
+              setThinkingExpanded(false);
+            } else if (parsed.reasoning) {
+              setThinkingContent((prev) => prev + parsed.reasoning);
+            } else if (parsed.content) {
+              accumulated += parsed.content;
+              setStreamingContent(accumulated);
             }
+          } catch {
+            // partial JSON chunk — skip
           }
         }
       }
-    } catch (err) {
-      console.error(err);
+
+      // Commit streamed message to messages array
+      setMessages((prev) => [...prev, { role: 'assistant', content: accumulated }]);
+      setStreamingContent('');
+      setThinkingContent('');
+      setIsThinking(false);
+      setThinkingExpanded(false);
+      onMessageSent();
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('User stopped the generation.');
+        // If aborted, keep what we have so far
+        if (accumulated.trim()) {
+          setMessages((prev) => [...prev, { role: 'assistant', content: accumulated }]);
+        }
+      } else {
+        console.error(err);
+      }
+      setStreamingContent('');
+      setThinkingContent('');
+      setIsThinking(false);
+      setThinkingExpanded(false);
     } finally {
       setIsStreaming(false);
     }
   };
 
+  const stopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleEditSubmit = (index: number, newContent: string) => {
+    // Truncate messages up to the edited message and send new one
+    const newHistory = messages.slice(0, index);
+    sendMessage(newContent, null, newHistory);
+  };
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    sendMessage(input);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
+  };
+
+  const firstName = (session?.user?.name ?? '').split(' ').pop() || 'bạn';
+  const showWelcome = !sessionId && messages.length === 0;
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#f8fafc]">
-      {/* Top Bar */}
-      <div className="h-[72px] px-8 border-b border-gray-100 bg-white flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Đạo hàm hàm hợp</h2>
-          <p className="text-[11px] text-gray-400 font-medium">Đạo hàm · 4 tin nhắn</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-[#e6f6f1] text-[#059669] text-[10px] font-bold">
-            RAG hoạt động
-          </span>
-          <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold border border-blue-100">
-            GPT-4o
-          </span>
-        </div>
+    <div className="flex-1 flex flex-col h-full" style={{ background: '#f8fafc' }}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-6"
+        style={{
+          height: 52,
+          background: '#fff',
+          borderBottom: '0.5px solid #e2e8f0',
+          flexShrink: 0,
+        }}
+      >
+        <span className="font-semibold text-sm" style={{ color: '#0f172a' }}>
+          {sessionId ? 'Cuộc trò chuyện' : 'MathBot AI'}
+        </span>
+        <span
+          className="text-xs font-medium px-2 py-0.5 rounded-full"
+          style={{ background: '#d1fae5', color: '#059669' }}
+        >
+          AI đang hoạt động
+        </span>
       </div>
 
-      {/* Message List */}
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-8 py-8 space-y-2 scroll-smooth"
-      >
-        <div className="max-w-4xl mx-auto w-full">
-          {messages.map((m, i) => (
-            <MessageBubble key={i} message={m} />
-          ))}
-          {isStreaming && (
-            <div className="flex items-center gap-2 text-[#059669] text-xs font-bold animate-pulse ml-14">
-              MathBot đang suy nghĩ...
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="max-w-4xl mx-auto">
+          {isLoadingHistory ? (
+            <div className="flex justify-center mt-16">
+              <div className="w-6 h-6 border-2 border-[#059669]/20 border-t-[#059669] rounded-full animate-spin" />
             </div>
+          ) : showWelcome ? (
+            /* Welcome screen */
+            <div className="flex flex-col items-center text-center pt-16 pb-8">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-4"
+                style={{ background: 'linear-gradient(135deg, #059669, #0891b2)' }}
+              >
+                M
+              </div>
+              <h2 className="text-xl font-bold mb-1" style={{ color: '#0f172a' }}>
+                Xin chào, {firstName}!
+              </h2>
+              <p className="text-sm mb-8" style={{ color: '#475569' }}>
+                Hỏi bất kỳ bài Toán THPT nào — tôi giải từng bước rõ ràng.
+              </p>
+              <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => sendMessage(s)}
+                    className="text-left text-xs px-3 py-2.5 rounded-xl transition-colors"
+                    style={{
+                      background: '#fff',
+                      border: '0.5px solid #e2e8f0',
+                      color: '#475569',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#059669';
+                      (e.currentTarget as HTMLButtonElement).style.color = '#059669';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0';
+                      (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {messages.map((m, i) => (
+                <MessageBubble 
+                  key={i} 
+                  message={m} 
+                  onEdit={(newContent) => handleEditSubmit(i, newContent)}
+                />
+              ))}
+              {/* Thinking box */}
+              {isStreaming && (isThinking || thinkingContent) && (
+                <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 text-xs">
+                  <button
+                    onClick={() => setThinkingExpanded((v) => !v)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    {isThinking && (
+                      <span className="flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '120ms' }} />
+                        <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '240ms' }} />
+                      </span>
+                    )}
+                    <span>{isThinking ? 'Đang suy nghĩ...' : 'Đã suy nghĩ xong'}</span>
+                    <span className="ml-auto">{thinkingExpanded ? '▲' : '▼'}</span>
+                  </button>
+                  {thinkingExpanded && thinkingContent && (
+                    <div className="px-3 pb-3 text-gray-400 whitespace-pre-wrap leading-relaxed border-t border-gray-200 pt-2 max-h-40 overflow-y-auto">
+                      {thinkingContent}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Streaming bubble */}
+              {isStreaming && streamingContent && (
+                <MessageBubble
+                  message={{ role: 'assistant', content: streamingContent }}
+                  isStreaming={true}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="p-6 bg-white border-t border-gray-100">
+      {/* Input */}
+      <div
+        style={{
+          background: '#fff',
+          borderTop: '0.5px solid #e2e8f0',
+          padding: '12px 16px 16px',
+          flexShrink: 0,
+          position: 'relative',
+        }}
+      >
         <div className="max-w-4xl mx-auto relative">
-          <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Hỏi bài, giải thích công thức..."
-              className="w-full bg-[#f8fafc] border border-gray-100 rounded-2xl px-6 py-4 pr-32 focus:outline-none focus:border-[#059669] focus:ring-1 focus:ring-[#059669] transition-all text-sm shadow-sm"
-              disabled={isStreaming}
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              <button 
-                type="button"
-                className="p-2 text-gray-400 hover:text-[#059669] transition-colors"
-                title="Đính kèm"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
-              <button 
-                type="submit"
-                disabled={!input.trim() || isStreaming}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  input.trim() && !isStreaming
-                    ? 'bg-[#059669] text-white shadow-md'
-                    : 'bg-gray-100 text-gray-400'
-                }`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </form>
-          <p className="text-center text-[10px] text-gray-400 mt-4">
-            MathBot có thể mắc lỗi — kiểm tra lại kết quả quan trọng
-          </p>
+          {/* Stop Button */}
+
+
+          <form
+          onSubmit={handleSubmit}
+          className="max-w-4xl mx-auto flex items-end gap-2"
+          style={{
+            background: '#f8fafc',
+            border: '0.5px solid #e2e8f0',
+            borderRadius: 12,
+            padding: '8px 12px 8px 8px',
+          }}
+        >
+          <MathInput
+            value={input}
+            onChange={setInput}
+            onEnter={() => sendMessage(input)}
+            image={selectedImage}
+            onImageSelect={setSelectedImage}
+            disabled={isStreaming || isLoadingHistory}
+          />
+          {isStreaming ? (
+            <button
+              type="button"
+              onClick={stopStreaming}
+              className="flex-shrink-0 w-8 h-8 mb-[4px] rounded-lg flex items-center justify-center transition-all bg-gray-800 text-white hover:bg-gray-700 shadow-sm"
+              title="Dừng tạo"
+            >
+              <div className="w-3 h-3 bg-white rounded-sm"></div>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit as any}
+              disabled={!input.trim() && !selectedImage}
+              className="flex-shrink-0 w-8 h-8 mb-[4px] rounded-lg flex items-center justify-center transition-all"
+              style={{
+                background:
+                  (input.trim() || selectedImage)
+                    ? 'linear-gradient(135deg, #059669, #0891b2)'
+                    : '#e2e8f0',
+                color: (input.trim() || selectedImage) ? '#fff' : '#94a3b8',
+              }}
+              title="Gửi tin nhắn"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
+        </form>
+        <p className="text-center text-[10px] mt-2" style={{ color: '#94a3b8' }}>
+          MathBot có thể mắc lỗi. Hãy kiểm tra kết quả quan trọng.
+        </p>
         </div>
       </div>
     </div>

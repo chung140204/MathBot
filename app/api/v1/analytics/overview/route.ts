@@ -109,6 +109,74 @@ export async function GET() {
       .sort((a, b) => a.accuracy - b.accuracy)
       .map(t => t.topic);
 
+    // 7. Streak calculation
+    // Get unique practice dates sorted desc
+    const practiceDates = Array.from(new Set(
+      attempts.map(a => format(new Date(a.submittedAt), 'yyyy-MM-dd'))
+    )).sort((a, b) => b.localeCompare(a));
+
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
+    let currentStreak = 0;
+    if (practiceDates.length > 0) {
+      const hasToday = practiceDates[0] === todayStr;
+      const hasYesterday = practiceDates[0] === yesterdayStr || (hasToday && practiceDates[1] === yesterdayStr);
+
+      if (hasToday || hasYesterday) {
+        let current = hasToday ? new Date(todayStr) : new Date(yesterdayStr);
+        currentStreak = 0;
+        
+        // Find consecutive days in practiceDates
+        let checkDate = current;
+        while (true) {
+          const checkDateStr = format(checkDate, 'yyyy-MM-dd');
+          if (practiceDates.includes(checkDateStr)) {
+            currentStreak++;
+            checkDate = subDays(checkDate, 1);
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    // Calculate best streak
+    let bestStreak = 0;
+    if (practiceDates.length > 0) {
+      let tempStreak = 0;
+      let lastDate: Date | null = null;
+
+      // practiceDates is sorted desc, so we iterate forwards (descending dates)
+      practiceDates.forEach((dateStr) => {
+        const currentDate = new Date(dateStr);
+        if (!lastDate) {
+          tempStreak = 1;
+        } else {
+          const diff = Math.round((lastDate.getTime() - currentDate.getTime()) / 86400000);
+          if (diff === 1) {
+            tempStreak++;
+          } else {
+            bestStreak = Math.max(bestStreak, tempStreak);
+            tempStreak = 1;
+          }
+        }
+        lastDate = currentDate;
+      });
+      bestStreak = Math.max(bestStreak, tempStreak);
+    }
+
+    // 7-day streak calendar (last 7 days including today)
+    const streakCalendar = Array.from({ length: 7 }).map((_, i) => {
+      const date = subDays(new Date(), 6 - i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      return {
+        date: dateStr,
+        practiced: practiceDates.includes(dateStr),
+        isToday: isSameDay(date, new Date()),
+      };
+    });
+
     return NextResponse.json({
       totalExams,
       averageScore,
@@ -119,6 +187,9 @@ export async function GET() {
       weeklyScores,
       recentAttempts,
       weakTopics,
+      currentStreak,
+      bestStreak,
+      streakCalendar,
     });
   } catch (error) {
     console.error('Analytics error:', error);

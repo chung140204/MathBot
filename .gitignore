@@ -64,3 +64,8 @@ Thumbs.db
 skills-lock.json
 CLAUDE.md
 /docs/
+/tmp/
+/reports/
+/scratch/
+*.txt
+test_db.ts

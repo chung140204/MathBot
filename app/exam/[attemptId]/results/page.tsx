@@ -94,6 +94,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'DERIVATIVE',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$3x^2 - 6x + 2$', B: '$3x^2 - 6x - 2$', C: '$x^2 - 6x + 2$', D: '$3x^2 + 6x + 2$' },
+      score: 1,
     },
     {
       questionId: 'q2',
@@ -102,6 +103,7 @@ const MOCK_RESULT: ExamResultData = {
       userAnswer: 'A',
       correctAnswer: 'A',
       isCorrect: true,
+      score: 1,
       explanation: '$\\int (2x+3)dx = x^2 + 3x + C$.',
       topic: 'INTEGRAL',
       format: 'MULTIPLE_CHOICE',
@@ -118,6 +120,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'LOGARITHM',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$x = 7$', B: '$x = 8$', C: '$x = 6$', D: '$x = 9$' },
+      score: 0,
     },
     {
       questionId: 'q4',
@@ -130,6 +133,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'INTEGRAL',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{1}{3}$', B: '$\\frac{1}{2}$', C: '$1$', D: '$\\frac{2}{3}$' },
+      score: 1,
     },
     {
       questionId: 'q5',
@@ -142,6 +146,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'DERIVATIVE',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$0$', B: '$1$', C: '$-1$', D: '$2$' },
+      score: 1,
     },
     {
       questionId: 'q6',
@@ -154,6 +159,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'COMPLEX_NUMBER',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$5$', B: '$7$', C: '$\\sqrt{7}$', D: '$25$' },
+      score: 1,
     },
     {
       questionId: 'q7',
@@ -166,6 +172,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'PROBABILITY',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{1}{2}$', B: '$\\frac{1}{3}$', C: '$\\frac{1}{6}$', D: '$\\frac{2}{3}$' },
+      score: 1,
     },
     {
       questionId: 'q8',
@@ -183,6 +190,7 @@ const MOCK_RESULT: ExamResultData = {
         C: 'Chỉ $x = 0$ là điểm cực trị',
         D: '$x = 0$ và $x = 2$ (cực đại tại $x = 2$, cực tiểu tại $x = 0$)',
       },
+      score: 0,
     },
     {
       questionId: 'q9',
@@ -195,6 +203,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'COMBINATORICS',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$10$', B: '$20$', C: '$5$', D: '$15$' },
+      score: 1,
     },
     {
       questionId: 'q10',
@@ -207,6 +216,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'SEQUENCE',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$21$', B: '$23$', C: '$19$', D: '$25$' },
+      score: 1,
     },
     {
       questionId: 'q11',
@@ -218,7 +228,8 @@ const MOCK_RESULT: ExamResultData = {
       explanation: '$\\int_0^{\\pi} \\sin x\\,dx = [-\\cos x]_0^{\\pi} = -\\cos\\pi + \\cos 0 = 1 + 1 = 2$.',
       topic: 'INTEGRAL',
       format: 'MULTIPLE_CHOICE',
-      options: { A: '$2$', B: '$0$', C: '$1$', D: '$-2$' },
+      options: { A: '$2', B: '$0$', C: '$1$', D: '$-2$' },
+      score: 1,
     },
     {
       questionId: 'q12',
@@ -231,6 +242,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'COMPLEX_NUMBER',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$2i$', B: '$2$', C: '$-2i$', D: '$1 + 2i$' },
+      score: 1,
     },
     {
       questionId: 'q13',
@@ -243,6 +255,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'DERIVATIVE',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{2}{2x+1}$', B: '$\\frac{1}{2x+1}$', C: '$\\frac{1}{x}$', D: '$\\frac{2}{x+1}$' },
+      score: 1,
     },
     {
       questionId: 'q14',
@@ -255,6 +268,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'LOGARITHM',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$x > 9$', B: '$x > 6$', C: '$x > 3$', D: '$x > 8$' },
+      score: 0,
     },
     {
       questionId: 'q15',
@@ -267,6 +281,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'GEOMETRY',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{4}{3}\\pi R^3$', B: '$4\\pi R^2$', C: '$\\frac{2}{3}\\pi R^3$', D: '$\\pi R^3$' },
+      score: 1,
     },
     {
       questionId: 'q16',
@@ -279,6 +294,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'DERIVATIVE',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$2e^{2x}$', B: '$e^{2x}$', C: '$2xe^{2x}$', D: '$e^{x}$' },
+      score: 1,
     },
     {
       questionId: 'q17',
@@ -291,6 +307,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'PROBABILITY',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{1}{6}$', B: '$\\frac{1}{12}$', C: '$\\frac{5}{36}$', D: '$\\frac{7}{36}$' },
+      score: 0,
     },
     {
       questionId: 'q18',
@@ -303,6 +320,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'SEQUENCE',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$u_n = 2 \\cdot 3^{n-1}$', B: '$u_n = 2 \\cdot 3^{n}$', C: '$u_n = 3 \\cdot 2^{n-1}$', D: '$u_n = 6^{n-1}$' },
+      score: 1,
     },
     {
       questionId: 'q19',
@@ -315,6 +333,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'INTEGRAL',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{8}{3}$', B: '$4$', C: '$\\frac{4}{3}$', D: '$2$' },
+      score: 1,
     },
     {
       questionId: 'q20',
@@ -327,6 +346,7 @@ const MOCK_RESULT: ExamResultData = {
       topic: 'GEOMETRY',
       format: 'MULTIPLE_CHOICE',
       options: { A: '$\\frac{a^3\\sqrt{2}}{3}$', B: '$\\frac{a^3}{3}$', C: '$a^3\\sqrt{2}$', D: '$\\frac{a^3\\sqrt{2}}{6}$' },
+      score: 1,
     },
   ],
 };

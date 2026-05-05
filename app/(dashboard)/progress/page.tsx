@@ -230,13 +230,13 @@ function ScoreBarChart({ data }: { data: WeeklyScore[] }) {
 // ─── Streak calendar ─────────────────────────────────────────────────────────
 
 function StreakCalendar({
-  days,
-  currentStreak,
-  bestStreak,
+  days = [],
+  currentStreak = 0,
+  bestStreak = 0,
 }: {
-  days: StreakDay[];
-  currentStreak: number;
-  bestStreak: number;
+  days?: StreakDay[];
+  currentStreak?: number;
+  bestStreak?: number;
 }) {
   const progress = Math.min(currentStreak / STREAK_GOAL, 1);
 
@@ -244,7 +244,7 @@ function StreakCalendar({
     <div className="flex flex-col gap-4">
       {/* Day circles */}
       <div className="flex items-start justify-between gap-1">
-        {days.map((day) => {
+        {days?.map((day) => {
           const label = day.isToday ? 'Hôm nay' : VN_DAYS[new Date(day.date + 'T12:00:00').getDay()];
           return (
             <div key={day.date} className="flex flex-col items-center gap-1.5 flex-1">
@@ -423,11 +423,11 @@ export default function ProgressPage() {
             />
             <MetricCard
               label="Streak hiện tại"
-              value={String(data.currentStreak)}
-              sub={`Kỷ lục: ${data.bestStreak} ngày`}
-              subGreen={data.currentStreak > 0}
+              value={String(data.currentStreak ?? 0)}
+              sub={`Kỷ lục: ${data.bestStreak ?? 0} ngày`}
+              subGreen={(data.currentStreak ?? 0) > 0}
               badge={
-                data.currentStreak > 0 ? (
+                (data.currentStreak ?? 0) > 0 ? (
                   <span className="text-2xl leading-none mb-0.5">💧</span>
                 ) : undefined
               }

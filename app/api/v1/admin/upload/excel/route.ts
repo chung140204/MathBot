@@ -118,6 +118,7 @@ export async function POST(request: Request) {
             format: format,
             questionType: normalizeQuestionType(row.question_type || 'PRACTICE'),
             options: {}, // Default mandatory field
+            answer: '', // Default mandatory field
           };
 
           if (!questionData.content || !questionData.topic) {

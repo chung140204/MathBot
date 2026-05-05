@@ -8,32 +8,33 @@
 
 ## Current session
 
-**Date:** 2026-04-13
-**Last working on:** Exam Module Completion (Generation, Results, AI Hints)
-**Status:** Exam cycle finalized (Start -> Submit -> Result) with AI assistance
+**Date:** 2026-05-05
+**Last working on:** Chatbot UX/UI Overhaul & Vision Integration
+**Status:** Completed professional ChatGPT-like chat interface with multimodal support.
 
 ### What was completed today
 
-#### 1. Exam Results Module ✅
-- Implemented `/exam/result` page with high-quality UI, hero stats, and performance breakdown charts.
-- Created `GET /api/v1/exam/result` endpoint for fetching attempt data with safety filters.
-- Added performance feedback based on topic accuracy (AI suggestions section).
+#### 1. Multimodal Vision Integration ✅
+- Integrated `meta/llama-3.2-90b-vision-instruct` for image understanding.
+- Implemented file upload (`📎`) and clipboard paste support (Ctrl+V).
+- Created a Base64-to-Markdown pipeline for image storage and rendering.
+- Added logic to switch models dynamically: Vision for images, Text-only (DeepSeek-R1 style) for prompts.
 
-#### 2. Exam Generation & Lifecycle ✅
-- Replaced mock question logic in `app/exam/page.tsx` with dynamic fetches from `/api/v1/exam/generate`.
-- Added `ExamSetupModal` for configuring topics and question count before starting.
-- Implemented `current_exam_session` and state persistence in `localStorage` for crash recovery.
-- Normalized scoring logic for MC (1pt), TF (0.25pt/item), and SA (0.5pt) based on 2025 THPT standards.
+#### 2. Professional Message Rendering ✅
+- Integrated `react-markdown`, `remark-gfm`, and `rehype-katex` for high-quality formatting.
+- Designed custom CSS for `.markdown` classes: headings (Emerald H3), lists, and indented paragraphs.
+- Implemented styled KaTeX blocks with padding, light backgrounds, and rounded corners.
 
-#### 3. AI Hint Integration ✅
-- Created `AIHintModal` with SSE (Server-Sent Events) streaming support for real-time math hints.
-- Integrated "Gợi ý từ AI" button into the exam interface with context-aware prompts.
-- Added `MathRenderer` consistency across hint modals and results lists.
+#### 3. Chat UX/UI Enhancements ✅
+- Replaced restricted `math-field` with standard `textarea` and a custom formula palette (`ƒx`).
+- Added a functional **"Stop"** button to abort streaming and save tokens.
+- Implemented **"Copy"** and **"Edit"** actions on messages.
+- Editing a message now correctly truncates the conversation history and re-triggers AI generation from that point.
 
-#### 4. UI/UX Polishes ✅
-- Fixed critical "Module not found" errors related to `MathRenderer` package paths.
-- Updated `TOPIC_LABELS` to cover all curriculum areas (Derivatives, Integrals, Functions, etc.).
-- Improved sidebar navigation with "Answered", "Skipped", and "Current" status indicators.
+#### 4. Critical Stability Fixes ✅
+- Fixed race conditions where history loading would overwrite active stream content.
+- Improved auto-scroll mechanism using a dual-trigger approach (immediate + 100ms delay) to handle Math/Image rendering.
+- Fixed NVIDIA API errors by conditionally removing `reasoning_budget` for Vision models.
 
 ### Module status
 
@@ -41,24 +42,23 @@
 |--------|----------|--------|-------|
 | Auth | `app/(auth)/` | ✅ Working | Login + Register, JWT sessions, raw SQL |
 | Dashboard | `app/(dashboard)/dashboard/` | ✅ Working | Landing page with stats |
-| Chat | `app/chat/` | ✅ Working | SSE streaming, KaTeX |
-| Progress | `app/(dashboard)/progress//` | ✅ Working | 4 metrics, charts, topic bars |
+| Chat | `app/chat/` | ✅ Working | **Vision support**, KaTeX, GFM, History Edit |
+| Progress | `app/(dashboard)/progress/` | ✅ Working | 4 metrics, charts, topic bars |
 | Exam | `app/exam/` | ✅ Working | Start -> Setup -> Hint -> Submit -> Result |
 | RAG | — | 🔲 Not started | Spec in `docs/AI_CHATBOT.md` |
 
 ### What is NOT done yet (pick up from here next session)
 
 - [ ] Implement RAG pipeline (`lib/rag/`) — embed, search, pipeline, prompts
-- [ ] Connect Chat to real OpenAI API (needs `OPENAI_API_KEY` in `.env`)
+- [ ] Transition from Base64 images to S3/Cloudinary/R2 storage (DB row size limits)
 - [ ] Seed database with comprehensive question bank
 - [ ] Implement `lib/errors.ts` and refined error boundaries
-- [ ] Add Vitest + Playwright test suites for the core exam flow
-- [ ] Delete leftover debug scripts
+- [ ] Add Vitest + Playwright test suites for the core chat/exam flows
 - [ ] Update `docs/PROJECT_STATUS.md`
 
 ### Blockers
-- `OPENAI_API_KEY` not in `.env` — Chat uses mock responses until added
-- `lib/prisma.ts` lint warning: `NeonQueryFunction` type mismatch (non-blocking, runtime works)
+- Prisma `db push` blocked by Neon TCP restrictions (requires proxy or manual migrations)
+- Base64 images are stored directly in DB (potential performance/storage issue at scale)
 
 ---
 
@@ -67,8 +67,6 @@
 Tell Cline exactly this:
 
 > "Read MEMORY.md and CLAUDE.md, then continue from where we left off"
-
-Cline will read this file, understand the current state, and pick up the next task automatically.
 
 ---
 
@@ -80,6 +78,7 @@ Cline will read this file, understand the current state, and pick up the next ta
 | 2026-04-10 | Auth fix (raw SQL), Chat module built, Router fix, Progress verified | Exam module, RAG pipeline, seed DB |
 | 2026-04-11 | Study Sidebar Navigation, UI logo update, Prisma Neon Pool fix | Exam module, RAG pipeline, seed DB |
 | 2026-04-13 | Exam Module Completion (Generation, Submission, Hints, Results) | RAG pipeline, Seed DB, OpenAI switch |
+| 2026-05-05 | **Chat Overhaul**: Vision integrated, Professional UI (Markdown/KaTeX), Edit/Stop functionality, Stability fixes | RAG pipeline, Image storage migration |
 
 ---
 
@@ -87,12 +86,11 @@ Cline will read this file, understand the current state, and pick up the next ta
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Auth bypass PrismaAdapter | Raw SQL via `neon()` | PrismaAdapter had connectivity issues with Neon serverless; raw SQL is stable and proven |
-| Chat as standalone module | `app/chat/` (not inside `(dashboard)`) | `ARCHITECTURE.md` line 60 defines Chat as independent module with its own layout |
-| Server-side route protection | `middleware.ts` with NextAuth `withAuth` | Client-side `useRouter.replace()` caused "Router action dispatched before initialization" |
-| SSE streaming API | Edge runtime + `ReadableStream` | Matches `API_SPEC.md` contract; mock fallback for dev without API key |
-| Study Topic Navigation | Suspense-wrapped isolated component | Avoids `useSearchParams` de-opt warning during Next.js builds |
-| Database Connection | `@neondatabase/serverless` Pool over Neon `neon` HTTP | Ensures compatibility with `@prisma/adapter-neon` parsing |
+| Vision Model | `meta/llama-3.2-90b-vision-instruct` | Best-in-class open vision model on NVIDIA NIM for math OCR |
+| Markdown rendering | `react-markdown` + `rehype-katex` | Industry standard for professional, safe, and styleable AI output |
+| Image storage (MVP) | Base64 strings in `chatMessage` | Avoids complex S3 setup during prototyping; uses existing schema |
+| Chat Rewind Logic | `messages.slice(0, index)` | Provides the most intuitive "Edit" experience (rewriting history) |
+| Streaming Control | `AbortController` + Stop button | Essential for UX and token cost management |
 
 ---
 
@@ -101,7 +99,7 @@ Cline will read this file, understand the current state, and pick up the next ta
 | Decision | Choice | Reason |
 |----------|--------|--------|
 | ORM | Prisma | See docs/decisions/001 |
-| AI provider | OpenAI GPT-4o | See docs/decisions/002 |
+| AI provider | NVIDIA (Llama 3.2 Vision / DeepSeek R1) | High performance, specialized models |
 | Vector DB | pgvector | See docs/decisions/003 |
 | Architecture | Next.js monolith | See docs/decisions/004 |
 | Database | Neon (PostgreSQL) | Free tier, pgvector support |

@@ -5,9 +5,9 @@ import Image from 'next/image';
 
 export default function LandingPage() {
   const topics = [
-    "Đạo hàm", "Tích phân", "Khảo sát hàm số", "Xác suất – Tổ hợp",
+    "Đạo hàm", "Nguyên hàm & Tích phân", "Khảo sát hàm số", "Xác suất – Tổ hợp",
     "Hình học không gian", "Dãy số", "Số phức", "Giới hạn – Liên tục",
-    "Hàm số mũ – Logarit", "Hình học giải tích", "Thể tích", "Nguyên hàm"
+    "Hàm số mũ – Logarit", "Hình học giải tích", "Thể tích"
   ];
 
   const features = [
@@ -196,7 +196,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-8">
           {[
             { label: "Câu hỏi", value: "200+" },
-            { label: "Chủ đề", value: "12" },
+            { label: "Chủ đề", value: "11" },
             { label: "AI hỗ trợ", value: "24/7" },
             { label: "Miễn phí", value: "100%" }
           ].map((stat, i) => (
@@ -238,7 +238,7 @@ export default function LandingPage() {
               {
                 step: '02',
                 title: 'Chọn chủ đề & luyện tập',
-                desc: 'Chọn 1 trong 12 chủ đề Toán 12. Làm bài trắc nghiệm hoặc hỏi AI giải thích từng bước.',
+                desc: 'Chọn 1 trong 11 chủ đề Toán 12. Làm bài trắc nghiệm hoặc hỏi AI giải thích từng bước.',
                 color: '#0891b2',
                 icon: (
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,7 +312,7 @@ export default function LandingPage() {
       <section id="topics" className="py-24 bg-white/50 px-4">
         <div className="max-w-5xl mx-auto text-center">
           <h3 className="text-[#059669] text-sm font-bold tracking-[0.2em] uppercase mb-4">Nội dung ôn thi</h3>
-          <h2 className="text-4xl font-bold text-slate-900 mb-4">12 chủ đề Toán 12</h2>
+          <h2 className="text-4xl font-bold text-slate-900 mb-4">11 chủ đề Toán 12</h2>
           <p className="text-slate-500 mb-16">Bao phủ toàn bộ chương trình THPT Quốc gia</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -376,7 +376,7 @@ export default function LandingPage() {
               <div className="flex items-center gap-6">
                 {[
                   { value: '200+', label: 'Câu hỏi' },
-                  { value: '12', label: 'Chủ đề' },
+                  { value: '11', label: 'Chủ đề' },
                   { value: '24/7', label: 'AI hỗ trợ' },
                 ].map((s) => (
                   <div key={s.label}>
@@ -395,7 +395,7 @@ export default function LandingPage() {
                   { href: '/register', label: 'Bắt đầu miễn phí' },
                   { href: '#how-it-works', label: 'Cách hoạt động' },
                   { href: '#features', label: 'Tính năng' },
-                  { href: '#topics', label: '12 chủ đề Toán 12' },
+                  { href: '#topics', label: '11 chủ đề Toán 12' },
                 ].map((l) => (
                   <li key={l.label}>
                     <Link href={l.href} className="hover:text-[#34d399] transition-colors">{l.label}</Link>

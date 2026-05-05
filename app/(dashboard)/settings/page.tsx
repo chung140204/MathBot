@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
+import { useSession } from 'next-auth/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,11 +164,34 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (c: boolean
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
+  const { data: session } = useSession();
+
   // Account state
-  const [accountName, setAccountName] = useState('Nguyễn Thành');
-  const [accountEmail, setAccountEmail] = useState('thanh.nguyen@email.com');
-  const [accountClass, setAccountClass] = useState('Lớp 12');
-  const [accountGoal, setAccountGoal] = useState('8.0 - 9.0 điểm');
+  const [accountName, setAccountName] = useState('');
+  const [accountEmail, setAccountEmail] = useState('');
+  const [accountClass, setAccountClass] = useState('');
+  const [accountGoal, setAccountGoal] = useState('');
+  const [accountImage, setAccountImage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Security state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
+  const passwordsMatch = newPassword.length > 0 && confirmPassword.length > 0 && newPassword === confirmPassword;
+  const passwordsMismatch = newPassword.length > 0 && confirmPassword.length > 0 && newPassword !== confirmPassword;
+
+  // Providers & Sessions state
+  const [providers, setProviders] = useState<LoginProvider[]>(PROVIDERS);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Session[]>(SESSIONS);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // Notifications state
   const [notifyDaily, setNotifyDaily] = useState(true);
@@ -175,40 +200,76 @@ export default function SettingsPage() {
   const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifyStreak, setNotifyStreak] = useState(true);
 
-  // AI state
+  // AI & Practice state
   const [aiStyle, setAiStyle] = useState('Chi tiết từng bước');
   const [aiSuggest, setAiSuggest] = useState(true);
   const [aiSaveHistory, setAiSaveHistory] = useState(true);
   const [aiLanguage, setAiLanguage] = useState('Tiếng Việt');
 
-  // Practice state
   const [practiceQuestionCount, setPracticeQuestionCount] = useState('20 câu');
   const [practiceShowTimer, setPracticeShowTimer] = useState(true);
   const [practiceShuffle, setPracticeShuffle] = useState(true);
   const [practiceShowAnswers, setPracticeShowAnswers] = useState(true);
-  const [practiceDifficulty, setPracticeDifficulty] = useState('Hỗn hợp');
+  const [practiceDifficulty, setPracticeDifficulty] = useState('Trung bình');
 
-  // Password state
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  // Initialize from session on mount/session change
+  useEffect(() => {
+    if (session?.user) {
+      if (!accountName && session.user.name) setAccountName(session.user.name);
+      if (!accountEmail && session.user.email) setAccountEmail(session.user.email);
+      if (!accountImage && session.user.image) setAccountImage(session.user.image);
+    }
+  }, [session, accountName, accountEmail, accountImage]);
 
-  // Providers state
-  const [providers, setProviders] = useState(PROVIDERS);
-  const [connectingId, setConnectingId] = useState<string | null>(null);
+  // ── Fetch Profile ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const res = await fetch('/api/v1/user/profile');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
 
-  // Sessions state
-  const [sessions, setSessions] = useState(SESSIONS);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
-
-  const strength = useMemo(() => getPasswordStrength(newPassword), [newPassword]);
-  const passwordsMatch = confirmPassword.length > 0 && newPassword === confirmPassword;
-  const passwordsMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+        // Preference order: DB data > Session data > Default
+        setAccountName(data.name || session?.user?.name || '');
+        setAccountEmail(data.email || session?.user?.email || '');
+        setAccountClass(data.grade || 'Lớp 12');
+        setAccountGoal(data.targetScore || '8.0 - 9.0 điểm');
+        setAccountImage(data.image || session?.user?.image || '');
+      } catch (err) {
+        console.error('Failed to fetch profile:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchProfile();
+  }, [session]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
+
+  async function handleSave() {
+    setIsSaving(true);
+    try {
+      const res = await fetch('/api/v1/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: accountName,
+          email: accountEmail,
+          targetScore: accountGoal,
+          image: accountImage,
+          // Skipping grade as requested
+        }),
+      });
+
+      if (!res.ok) throw new Error('Cập nhật thất bại');
+      alert('Đã lưu thay đổi!');
+    } catch (err) {
+      console.error('Save error:', err);
+      alert('Có lỗi xảy ra khi lưu thay đổi.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
 
   async function handleChangePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) return;
@@ -228,7 +289,7 @@ export default function SettingsPage() {
   async function handleToggleProvider(id: string) {
     setConnectingId(id);
     await new Promise((r) => setTimeout(r, 1000));
-    setProviders((prev) =>
+    setProviders((prev: LoginProvider[]) =>
       prev.map((p) => (p.id === id ? { ...p, connected: !p.connected } : p))
     );
     setConnectingId(null);
@@ -237,13 +298,13 @@ export default function SettingsPage() {
   async function handleRevokeSession(id: string) {
     setRevokingId(id);
     await new Promise((r) => setTimeout(r, 800));
-    setSessions((prev) => prev.filter((s) => s.id !== id));
+    setSessions((prev: Session[]) => prev.filter((s) => s.id !== id));
     setRevokingId(null);
   }
 
   async function handleRevokeAll() {
     if (!confirm('Bạn sẽ bị đăng xuất khỏi tất cả các thiết bị khác. Tiếp tục?')) return;
-    setSessions((prev) => prev.filter((s) => s.isCurrent));
+    setSessions((prev: Session[]) => prev.filter((s) => s.isCurrent));
   }
 
   function handleLogout() {
@@ -266,8 +327,12 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-black text-gray-900">Cài đặt ⚙️</h1>
           <p className="text-sm text-gray-500 mt-1">Quản lý tài khoản và tuỳ chỉnh trải nghiệm</p>
         </div>
-        <button className="px-5 py-2.5 bg-white border border-gray-200 text-gray-900 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-all">
-          Lưu thay đổi
+        <button 
+          onClick={handleSave}
+          disabled={isSaving}
+          className="px-5 py-2.5 bg-gray-900 text-white font-bold rounded-xl shadow-sm hover:bg-gray-800 transition-all disabled:opacity-50"
+        >
+          {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
         </button>
       </div>
 
@@ -667,15 +732,29 @@ export default function SettingsPage() {
             <div className="space-y-6 max-w-2xl">
               {/* Avatar */}
               <div className="flex items-center gap-6">
-                <div className="w-20 h-20 bg-[#0891b2] rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner">
-                  NT
+                {accountImage ? (
+                  <img 
+                    src={accountImage} 
+                    alt="Avatar" 
+                    className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md"
+                  />
+                ) : (
+                  <div className="w-20 h-20 bg-[#0891b2] rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner">
+                    {accountName?.substring(0, 2).toUpperCase() || '??'}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-gray-900">{accountName || 'Chưa cập nhật'}</h3>
+                  <p className="text-sm text-gray-500">{accountEmail}</p>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Nguyễn Thành</h3>
-                  <p className="text-sm text-gray-500">thanh.nguyen@email.com</p>
-                </div>
-                <div className="ml-auto">
-                  <button className="px-5 py-2 border border-gray-200 text-gray-900 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-all">
+                <div className="ml-auto flex flex-col gap-2">
+                  <button 
+                    onClick={() => {
+                      const url = prompt('Nhập URL ảnh đại diện mới:', accountImage);
+                      if (url !== null) setAccountImage(url);
+                    }}
+                    className="px-5 py-2 border border-gray-200 text-gray-900 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-all text-sm"
+                  >
                     Đổi ảnh
                   </button>
                 </div>

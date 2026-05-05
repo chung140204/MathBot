@@ -38,7 +38,7 @@ function StudyContent() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const selectedTopicLabel = TOPIC_CONFIG.find(t => t.key === selectedTopic)?.label || selectedTopic;
-  const subSections = TOPIC_SUBSECTIONS[selectedTopic] || [];
+  const subSections = TOPIC_SUBSECTIONS[selectedTopic as Topic] || [];
   const activeSubSectionLabel = subSections[activeSubSectionIndex] || '';
 
   // Update document title

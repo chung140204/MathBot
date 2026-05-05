@@ -1,9 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -13,6 +16,10 @@ model User {
   name         String
   role         UserRole      @default(STUDENT)
   createdAt    DateTime      @default(now())
+  grade        String?
+  targetScore  String?
+  image        String?
+  settings     Json?         @default("{}")
   updatedAt    DateTime      @updatedAt
   chatSessions ChatSession[]
   examAttempts ExamAttempt[]

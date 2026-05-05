@@ -9,6 +9,7 @@ import { useSession, signOut } from 'next-auth/react';
 // ─── Constants & Config ──────────────────────────────────────────────────────
 
 import { TOPIC_CONFIG, TOPIC_SUBSECTIONS } from '@/lib/constants/topics';
+import { Topic } from '@prisma/client';
 
 const COLOR_MAP = {
   green: { dot: 'bg-[#059669]', pillBg: 'bg-[#d1fae5]', pillText: 'text-[#059669]', activeBg: 'bg-[#e6f7f2]', activeText: 'text-[#059669]' },
@@ -126,7 +127,7 @@ function TopicMenu({ realStats, isVisible }: { realStats: Record<string, number>
           const colors = COLOR_MAP[topic.color as keyof typeof COLOR_MAP];
           const acc = realStats ? (realStats[topic.key] ?? topic.mockAcc ?? 0) : topic.mockAcc;
           const isExpanded = openTopic === topic.key;
-          const subs = TOPIC_SUBSECTIONS[topic.key] || [];
+          const subs = TOPIC_SUBSECTIONS[topic.key as Topic] || [];
 
           return (
             <li key={topic.key} className="relative z-10 flex flex-col">
@@ -158,7 +159,7 @@ function TopicMenu({ realStats, isVisible }: { realStats: Record<string, number>
                 style={{ maxHeight: isExpanded ? `${subs.length * 36}px` : '0px' }}
               >
                 <div className="flex flex-col border-l border-slate-100 pl-2 space-y-0.5 py-0.5">
-                  {subs.map((sub, idx) => {
+                  {subs.map((sub: string, idx: number) => {
                     const isSubActive = activeTopic === topic.key && activeSubIndex === idx;
                     return (
                       <Link

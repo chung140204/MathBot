@@ -13,7 +13,7 @@ interface MathRendererProps {
  * Detects $$...$$ for block math and $...$ for inline math.
  */
 export default function MathRenderer({ content, className = '' }: MathRendererProps) {
-  const parts = content.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/g);
+  const parts = content.split(/(\$\$[\s\S]*?\$\$|\$[\s\S]+?\$)/g);
 
   return (
     <span className={className}>
