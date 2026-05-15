@@ -1,12 +1,5 @@
 import prisma from '@/lib/db';
-
-interface KnowledgeChunkResult {
-  id: string;
-  content: string;
-  topic: string;
-  source: string;
-  similarity: number;
-}
+import { KnowledgeChunkResult } from './types';
 
 const RAG_TOP_K = parseInt(process.env.RAG_TOP_K || '5', 10);
 const RAG_SIMILARITY_THRESHOLD = parseFloat(process.env.RAG_SIMILARITY_THRESHOLD || '0.7');
@@ -53,4 +46,41 @@ export async function searchSimilarChunks(
   );
 
   return results;
+}
+
+export async function searchByKeywords(
+  query: string,
+  topK: number = RAG_TOP_K,
+  topic?: string | null,
+): Promise<KnowledgeChunkResult[]> {
+  try {
+    if (topic) {
+      return await prisma.$queryRawUnsafe<KnowledgeChunkResult[]>(
+        `SELECT id, content, topic, source,
+                ts_rank(content_tsv, plainto_tsquery('simple', $1)) AS similarity
+         FROM knowledge_chunks
+         WHERE content_tsv @@ plainto_tsquery('simple', $1)
+           AND topic = $3
+         ORDER BY similarity DESC
+         LIMIT $2`,
+        query,
+        topK,
+        topic,
+      );
+    }
+
+    return await prisma.$queryRawUnsafe<KnowledgeChunkResult[]>(
+      `SELECT id, content, topic, source,
+              ts_rank(content_tsv, plainto_tsquery('simple', $1)) AS similarity
+       FROM knowledge_chunks
+       WHERE content_tsv @@ plainto_tsquery('simple', $1)
+       ORDER BY similarity DESC
+       LIMIT $2`,
+      query,
+      topK,
+    );
+  } catch (error) {
+    console.warn('[searchByKeywords] Full-text search failed:', error);
+    return [];
+  }
 }

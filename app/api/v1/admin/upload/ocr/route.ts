@@ -180,13 +180,29 @@ export async function POST(req: NextRequest) {
       }),
     );
 
-    const openai = new OpenAI({
+    // Stage 1 Vision: use Gemini if GEMINI_API_KEY is set, else fall back to NVIDIA
+    const visionClient = process.env.GEMINI_API_KEY
+      ? new OpenAI({
+          apiKey: process.env.GEMINI_API_KEY,
+          baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        })
+      : new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+          baseURL: process.env.NVIDIA_BASE_URL || undefined,
+        });
+    const visionModel = process.env.GEMINI_API_KEY
+      ? (process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash')
+      : (process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct');
+
+    // Stage 2 Text: keep NVIDIA (no vision needed)
+    const textClient = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       baseURL: process.env.NVIDIA_BASE_URL || undefined,
     });
+    const textModel = process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct';
 
-    const visionModel = process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct';
-    const textModel = process.env.NVIDIA_TEXT_MODEL || visionModel;
+    console.log(`[OCR_API] Stage 1 vision: ${visionModel} (${process.env.GEMINI_API_KEY ? 'Gemini' : 'NVIDIA'})`);
+    console.log(`[OCR_API] Stage 2 text:   ${textModel} (NVIDIA)`);
 
     const examLabel = [
       examYear ? `năm ${examYear}` : '',
@@ -224,19 +240,19 @@ export async function POST(req: NextRequest) {
 
           const pageTextResults = await Promise.allSettled(
             base64Images.map(async (img, i) => {
-              const res = await openai.chat.completions.create({
+              const res = await visionClient.chat.completions.create({
                 model: visionModel,
                 messages: [
                   { role: 'system', content: THPT_PAGE_EXTRACTION_PROMPT },
                   {
                     role: 'user',
                     content: [
-                      { type: 'text', text: `This is page ${i + 1} of ${total} from a Vietnamese math exam. Transcribe ALL visible Vietnamese math content from this image exactly as written. Output ONLY what you see in this specific image.` },
+                      { type: 'text', text: `This is page ${i + 1} of ${total} from a Vietnamese math exam. Transcribe ALL visible Vietnamese math content from this image exactly as written. Output ONLY what you see in this specific image.\n\nREMINDER: You MUST end your output with the __positions__ JSON line as specified in the system prompt.` },
                       { type: 'image_url', image_url: { url: `data:${img.type};base64,${img.data}` } },
                     ],
                   },
                 ],
-                max_tokens: 2048,
+                max_tokens: 4096,
                 temperature: 0,
                 stream: false,
               });
@@ -289,18 +305,38 @@ export async function POST(req: NextRequest) {
               const questionPositions = pagePositionsMap[i + 1] ?? [];
 
               // Fallback: stage 1 didn't output __positions__ → parse page text for question labels
+              // Strategy: find "Câu X" near line starts (allow leading whitespace/markdown), cap at 10
               const effectivePositions: QuestionPosition[] = questionPositions.length > 0
                 ? questionPositions
                 : (() => {
                     const pageText = pageTexts[i] ?? '';
-                    const found = [...new Set(
-                      [...pageText.matchAll(/(?:PHẦN\s+(?:II?I?)\s+)?Câu\s+\d+/gi)]
-                        .map((m) => m[0].trim().replace(/\s+/g, ' ')),
-                    )].filter((label) => !/Câu\s+0\d/i.test(label)); // filter header labels like "Câu 01"
-                    if (found.length > 0) {
-                      console.log(`[OCR_API] YOLO page ${i + 1}: no __positions__, fallback from text: ${found.join(', ')}`);
-                      return found.map((label) => ({ label, type: 'question' as const, yStart: 0, yEnd: 1 }));
+                    // Match "Câu X" at start of line (allow leading spaces, *, #, etc.)
+                    const lineStartMatches = [...new Set(
+                      [...pageText.matchAll(/^[\s*#]*(?:PHẦN\s+(?:II?I?)\s+)?Câu\s+\d+/gim)]
+                        .map((m) => m[0].trim().replace(/^[*#\s]+/, '').replace(/\s+/g, ' ')),
+                    )].filter((label) => !/Câu\s+0\d/i.test(label));
+
+                    // Use line-start matches if reasonable count (1-10 per page)
+                    if (lineStartMatches.length > 0 && lineStartMatches.length <= 10) {
+                      console.log(`[OCR_API] YOLO page ${i + 1}: no __positions__, fallback (line-start): ${lineStartMatches.join(', ')}`);
+                      return lineStartMatches.map((label) => ({ label, type: 'question' as const, yStart: 0, yEnd: 1 }));
                     }
+
+                    // Last resort: find ALL "Câu X" but only keep first occurrence of each number,
+                    // limited to first 40% of text (actual page content, not hallucinated continuation)
+                    const cutoff = Math.floor(pageText.length * 0.4);
+                    const earlyText = pageText.slice(0, cutoff);
+                    const earlyMatches = [...new Set(
+                      [...earlyText.matchAll(/(?:PHẦN\s+(?:II?I?)\s+)?Câu\s+\d+/gi)]
+                        .map((m) => m[0].trim().replace(/\s+/g, ' ')),
+                    )].filter((label) => !/Câu\s+0\d/i.test(label));
+
+                    if (earlyMatches.length > 0 && earlyMatches.length <= 10) {
+                      console.log(`[OCR_API] YOLO page ${i + 1}: no __positions__, fallback (early-text): ${earlyMatches.join(', ')}`);
+                      return earlyMatches.map((label) => ({ label, type: 'question' as const, yStart: 0, yEnd: 1 }));
+                    }
+
+                    console.warn(`[OCR_API] YOLO page ${i + 1}: fallback failed — line-start: ${lineStartMatches.length}, early-text: ${earlyMatches.length} labels`);
                     return [];
                   })();
 
@@ -308,15 +344,22 @@ export async function POST(req: NextRequest) {
 
               const allFullPage = effectivePositions.every((p) => p.yStart === 0 && p.yEnd === 1);
 
+              // When all positions are fallback [0,1], distribute evenly so Y-center matching works
+              if (allFullPage && effectivePositions.length > 1) {
+                const step = 1.0 / effectivePositions.length;
+                effectivePositions.forEach((p, idx) => {
+                  p.yStart = idx * step;
+                  p.yEnd = (idx + 1) * step;
+                });
+                console.log(`[OCR_API] YOLO page ${i + 1}: distributed positions evenly (${effectivePositions.length} questions, step=${step.toFixed(3)})`);
+              }
+
               const figures: QuestionPosition[] = detections.map((det) => {
                 // Infer which question owns this figure by y-center overlap
                 const figCenterY = (det.yStart + det.yEnd) / 2;
-                // When all positions are fallback [0,1], pick last question (figure is usually near it)
-                const owner = allFullPage
-                  ? effectivePositions[effectivePositions.length - 1]
-                  : effectivePositions.find(
-                      (qp) => qp.type === 'question' && figCenterY >= qp.yStart && figCenterY <= qp.yEnd,
-                    ) ?? effectivePositions[effectivePositions.length - 1];
+                const owner = effectivePositions.find(
+                    (qp) => qp.type === 'question' && figCenterY >= qp.yStart && figCenterY <= qp.yEnd,
+                  ) ?? effectivePositions[effectivePositions.length - 1];
                 console.log(`[OCR_API] YOLO det: type=${det.type} bbox=[${det.xStart.toFixed(3)},${det.yStart.toFixed(3)},${det.xEnd.toFixed(3)},${det.yEnd.toFixed(3)}] conf=${det.confidence.toFixed(3)} → owner=${owner?.label ?? 'NONE'}`);
 
                 return {
@@ -329,6 +372,28 @@ export async function POST(req: NextRequest) {
                   questionLabel: owner?.label,
                 };
               });
+
+              // Adjacent table/figure reassignment: if two detections are close vertically
+              // but assigned to different consecutive questions, reassign the upper one to the
+              // lower question. Adjacent tables almost always belong to the same question.
+              if (figures.length > 1) {
+                const sorted = [...figures].sort((a, b) => a.yStart - b.yStart);
+                for (let j = 0; j < sorted.length - 1; j++) {
+                  const current = sorted[j];
+                  const next = sorted[j + 1];
+                  const gap = next.yStart - current.yEnd;
+                  // Only reassign adjacent TABLES — figures from different questions should stay separate
+                  if (
+                    gap < 0.1 &&
+                    current.type === 'table' && next.type === 'table' &&
+                    current.questionLabel !== next.questionLabel
+                  ) {
+                    console.log(`[OCR_API] YOLO reassign: ${current.type} (owner=${current.questionLabel}) adjacent to ${next.type} (owner=${next.questionLabel}), gap=${gap.toFixed(3)} → reassign to ${next.questionLabel}`);
+                    current.questionLabel = next.questionLabel;
+                    current.label = next.label;
+                  }
+                }
+              }
 
               // Merge multiple boxes belonging to the same question into one union box.
               // A question may have 2 adjacent tables — YOLO gives 2 boxes, we crop 1 image.
@@ -369,7 +434,7 @@ export async function POST(req: NextRequest) {
             ? `Đề thi THPT ${examLabel}.\n\nNội dung đề thi:\n${combinedText}`
             : `Nội dung đề thi:\n${combinedText}`;
 
-          const response = await openai.chat.completions.create({
+          const response = await textClient.chat.completions.create({
             model: textModel,
             messages: [
               { role: 'system', content: THPT_OCR_SYSTEM_PROMPT },

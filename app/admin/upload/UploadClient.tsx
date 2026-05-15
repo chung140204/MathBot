@@ -268,7 +268,7 @@ export default function UploadClient({ user }: { user: AuthUser }) {
               else if (ocrQuestions.some((qq) => qq.questionNumber === p3)) qNum = p3;
             }
             const finalQNum = qNum;
-            cropPageImage(dataUrl, pos.yStart, pos.yEnd, 0.02, pos.xStart ?? 0, pos.xEnd ?? 1).then((cropUrl) => {
+            cropPageImage(dataUrl, pos.yStart, pos.yEnd, 0, pos.xStart ?? 0, pos.xEnd ?? 1).then((cropUrl) => {
               setQuestionFigures((prev) => prev[finalQNum] ? prev : { ...prev, [finalQNum]: cropUrl });
             });
           }

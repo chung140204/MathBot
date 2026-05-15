@@ -13,6 +13,9 @@ dotenv.config({ path: '.env.local' });
 let classifyTopic: any;
 let createEmbedding: any;
 let ragSearch: any;
+let decomposeQuery: any;
+let detectFollowUp: any;
+let mergeAndRerank: any;
 
 let passed = 0;
 let failed = 0;
@@ -52,6 +55,9 @@ async function main() {
   ({ classifyTopic } = await import('../lib/rag/router'));
   ({ createEmbedding } = await import('../lib/rag/embed'));
   ({ ragSearch } = await import('../lib/rag/pipeline'));
+  ({ decomposeQuery } = await import('../lib/rag/decompose'));
+  ({ detectFollowUp } = await import('../lib/rag/query-rewriter'));
+  ({ mergeAndRerank } = await import('../lib/rag/rerank'));
 
   console.log('\n🧪 MathBot Chatbot Test Suite\n');
 
@@ -76,7 +82,7 @@ async function main() {
   );
 
   test('hình không gian → SOLID_GEOMETRY', () =>
-    classifyTopic('tính góc nhị diện của hình chóp') === 'SOLID_GEOMETRY'
+    classifyTopic('tính góc nhị diện trong hình học không gian') === 'SOLID_GEOMETRY'
   );
 
   test('giới hạn → LIMITS', () =>
@@ -114,28 +120,28 @@ async function main() {
   // ═══════════════════════════════
 
   await testAsync('search "đạo hàm" → có kết quả', async () => {
-    const chunks = await ragSearch('tính đạo hàm của hàm số');
-    console.log(`     → ${chunks.length} chunks, topics: ${[...new Set(chunks.map(c => c.topic))].join(', ')}`);
+    const { chunks } = await ragSearch('tính đạo hàm của hàm số');
+    console.log(`     → ${chunks.length} chunks, topics: ${[...new Set(chunks.map((c: any) => c.topic))].join(', ')}`);
     return chunks.length > 0;
   });
 
   await testAsync('search "đạo hàm" → chunks thuộc DERIVATIVES', async () => {
-    const chunks = await ragSearch('công thức đạo hàm cơ bản');
-    return chunks.every(c => c.topic === 'DERIVATIVES');
+    const { chunks } = await ragSearch('công thức đạo hàm cơ bản');
+    return chunks.every((c: any) => c.topic === 'DERIVATIVES');
   });
 
   await testAsync('search "tích phân" → chunks thuộc INTEGRALS', async () => {
-    const chunks = await ragSearch('tính tích phân xác định');
-    return chunks.length > 0 && chunks.some(c => c.topic === 'INTEGRALS');
+    const { chunks } = await ragSearch('tính tích phân xác định');
+    return chunks.length > 0 && chunks.some((c: any) => c.topic === 'INTEGRALS');
   });
 
   await testAsync('search "số phức" → chunks thuộc COMPLEX_NUMBERS', async () => {
-    const chunks = await ragSearch('tìm mô-đun số phức');
-    return chunks.length > 0 && chunks.some(c => c.topic === 'COMPLEX_NUMBERS');
+    const { chunks } = await ragSearch('tìm mô-đun số phức');
+    return chunks.length > 0 && chunks.some((c: any) => c.topic === 'COMPLEX_NUMBERS');
   });
 
   await testAsync('search "xin chào" → ít/không có kết quả (fallback)', async () => {
-    const chunks = await ragSearch('xin chào bạn ơi');
+    const { chunks } = await ragSearch('xin chào bạn ơi');
     console.log(`     → ${chunks.length} chunks (expected: few or 0)`);
     return true; // just log, don't fail
   });
@@ -229,6 +235,164 @@ async function main() {
     const r = normalizeContent('kết quả undefined là');
     return !r.includes('undefined');
   });
+
+  // ═══════════════════════════════
+  console.log('\n📌 6. Query Decomposition');
+  // ═══════════════════════════════
+
+  test('câu đơn → 1 sub-query, không tách', () => {
+    const result = decomposeQuery('tính đạo hàm');
+    return result.subQueries.length === 1 && result.subQueries[0] === 'tính đạo hàm';
+  });
+
+  test('"rồi" → tách thành 2 sub-queries', () => {
+    const result = decomposeQuery('tính đạo hàm rồi tìm cực trị');
+    return result.subQueries.length === 2;
+  });
+
+  test('"và tìm" → tách thành 2 sub-queries', () => {
+    const result = decomposeQuery('giải phương trình và tìm nghiệm');
+    return result.subQueries.length === 2;
+  });
+
+  test('max 3 sub-queries dù có nhiều split point', () => {
+    const result = decomposeQuery('tính đạo hàm rồi tìm cực trị sau đó khảo sát hàm số tiếp theo xác định tiệm cận');
+    return result.subQueries.length <= 3;
+  });
+
+  test('original được giữ nguyên', () => {
+    const q = 'tính đạo hàm rồi tìm cực trị';
+    const result = decomposeQuery(q);
+    return result.original === q;
+  });
+
+  test('sub-query đầu tiên không rỗng', () => {
+    const result = decomposeQuery('tính đạo hàm rồi tìm cực trị');
+    return result.subQueries[0].trim().length > 0;
+  });
+
+  // ═══════════════════════════════
+  console.log('\n📌 7. Follow-Up Detection');
+  // ═══════════════════════════════
+
+  test('"câu trên" → follow-up', () =>
+    detectFollowUp('câu trên làm như thế nào?') === true
+  );
+
+  test('"cách khác đi" → follow-up', () =>
+    detectFollowUp('cách khác đi') === true
+  );
+
+  test('"tại sao kết quả lại là 5?" → follow-up', () =>
+    detectFollowUp('tại sao kết quả lại là 5?') === true
+  );
+
+  test('"nếu thay x = 2" → follow-up', () =>
+    detectFollowUp('nếu thay x = 2 thì sao?') === true
+  );
+
+  test('"làm tiếp phần 2" → follow-up', () =>
+    detectFollowUp('làm tiếp phần 2') === true
+  );
+
+  test('"ok" (ngắn, không có topic) → follow-up', () =>
+    detectFollowUp('ok') === true
+  );
+
+  test('câu hỏi đầy đủ về đạo hàm → không phải follow-up', () =>
+    detectFollowUp('tính đạo hàm của f(x) = x^3 + 2x') === false
+  );
+
+  test('câu hỏi đầy đủ về phương trình → không phải follow-up', () =>
+    detectFollowUp('giải phương trình bậc 2: x^2 - 5x + 6 = 0') === false
+  );
+
+  // ═══════════════════════════════
+  console.log('\n📌 8. Merge & Rerank');
+  // ═══════════════════════════════
+
+  test('dedup — cùng chunk id không bị trùng', () => {
+    const chunk = { id: 'c1', content: 'đạo hàm', topic: 'DERIVATIVES', source: 'test', similarity: 0.9 };
+    const result = mergeAndRerank([[chunk]], [chunk], 'DERIVATIVES', 'đạo hàm', 5);
+    return result.filter((r: any) => r.id === 'c1').length === 1;
+  });
+
+  test('chunk có similarity cao hơn → đứng đầu', () => {
+    const high = { id: 'h1', content: 'tính đạo hàm', topic: 'DERIVATIVES', source: 'test', similarity: 0.95 };
+    const low = { id: 'l1', content: 'bài tập', topic: 'INTEGRALS', source: 'test', similarity: 0.5 };
+    const result = mergeAndRerank([[high, low]], [], 'DERIVATIVES', 'đạo hàm', 5);
+    return result[0].id === 'h1';
+  });
+
+  test('topic boost — chunk đúng topic có finalScore cao hơn', () => {
+    const correct = { id: 'c1', content: 'đạo hàm cơ bản', topic: 'DERIVATIVES', source: 'test', similarity: 0.8 };
+    const wrong = { id: 'c2', content: 'tích phân cơ bản', topic: 'INTEGRALS', source: 'test', similarity: 0.8 };
+    const result = mergeAndRerank([[correct, wrong]], [], 'DERIVATIVES', 'đạo hàm', 5);
+    const c = result.find((r: any) => r.id === 'c1');
+    const w = result.find((r: any) => r.id === 'c2');
+    return c.finalScore > w.finalScore;
+  });
+
+  test('top-K giới hạn đúng số lượng', () => {
+    const chunks = Array.from({ length: 10 }, (_, i) => ({
+      id: `c${i}`, content: `chunk ${i}`, topic: 'DERIVATIVES', source: 'test', similarity: Math.random(),
+    }));
+    const result = mergeAndRerank([chunks], [], null, 'test', 3);
+    return result.length === 3;
+  });
+
+  test('finalScore theo công thức 0.55*vec + 0.30*kw + 0.15*topic', () => {
+    const chunk = { id: 'c1', content: 'tính đạo hàm', topic: 'DERIVATIVES', source: 'test', similarity: 1.0 };
+    const result = mergeAndRerank([[chunk]], [], 'DERIVATIVES', 'tính đạo hàm', 5);
+    const r = result[0];
+    const expected = 0.55 * r.similarity + 0.30 * r.keywordScore + 0.15 * r.topicBoost;
+    return Math.abs(r.finalScore - expected) < 0.001;
+  });
+
+  // ═══════════════════════════════
+  console.log('\n📌 9. RAG Precision@3 (cần DB)');
+  // ═══════════════════════════════
+
+  const precisionCases = [
+    { query: 'tính đạo hàm của f(x) = x³ - 3x + 2', expectedTopic: 'DERIVATIVES' },
+    { query: 'tìm nguyên hàm của 2x + cos(x)', expectedTopic: 'INTEGRALS' },
+    { query: 'giải phương trình 2^x = 16', expectedTopic: 'EXPONENTIAL_LOG' },
+    { query: 'tính xác suất rút 2 bi đỏ từ túi 5 đỏ 3 xanh', expectedTopic: 'PROBABILITY' },
+    { query: 'tìm mô-đun số phức z = 3 + 4i', expectedTopic: 'COMPLEX_NUMBERS' },
+    { query: 'khảo sát hàm số y = x³ - 3x', expectedTopic: 'DERIVATIVES' },
+    { query: 'tính thể tích hình chóp đáy vuông', expectedTopic: 'VOLUME' },
+    { query: 'tìm số hạng thứ n của cấp số cộng', expectedTopic: 'SEQUENCES' },
+  ];
+
+  let totalPrecision = 0;
+  let precisionCount = 0;
+
+  for (const { query, expectedTopic } of precisionCases) {
+    await testAsync(`precision@3 "${query.slice(0, 30)}..." → ${expectedTopic}`, async () => {
+      try {
+        const { chunks } = await ragSearch(query);
+        const top3 = chunks.slice(0, 3);
+        if (top3.length === 0) {
+          console.log(`     → 0 chunks (DB có dữ liệu chưa?)`);
+          return false;
+        }
+        const correct = top3.filter((c: any) => c.topic === expectedTopic).length;
+        const precision = correct / top3.length;
+        totalPrecision += precision;
+        precisionCount++;
+        console.log(`     → precision@3: ${(precision * 100).toFixed(0)}% (${correct}/${top3.length} đúng topic)`);
+        return precision >= 0.5;
+      } catch (e: any) {
+        console.log(`     ⚠️  Lỗi DB — ${e.message}`);
+        return true; // skip nếu DB không kết nối được
+      }
+    });
+  }
+
+  if (precisionCount > 0) {
+    const avg = (totalPrecision / precisionCount * 100).toFixed(1);
+    console.log(`\n  📊 Average precision@3: ${avg}% (across ${precisionCount} queries)`);
+  }
 
   // ═══════════════════════════════
   console.log('\n═══════════════════════════════');

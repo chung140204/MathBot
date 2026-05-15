@@ -173,7 +173,7 @@ export default function ChatWindow({
       if (sseTimeoutRef.current) clearTimeout(sseTimeoutRef.current);
       sseTimeoutRef.current = setTimeout(() => {
         abortControllerRef.current?.abort();
-      }, 30_000);
+      }, 120_000);
     };
     resetSseTimeout();
 

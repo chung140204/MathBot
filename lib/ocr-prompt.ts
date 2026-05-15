@@ -73,6 +73,23 @@ Nguyên tắc chung:
 - Nếu không đọc rõ một từ → ghi [?] tại chỗ đó, KHÔNG tự điền vào.
 - Số liệu phải chính xác: 200 m, 36 km/h, 12 giây... chép đúng như trong ảnh.
 
+== TIẾNG VIỆT — THUẬT NGỮ TOÁN HỌC ==
+Các thuật ngữ toán THƯỜNG GẶP — đọc kỹ, KHÔNG nhầm dấu:
+- "trục Ox", "trục hoành", "trục tung" (KHÔNG PHẢI "trừ Ox", "trúc")
+- "tròn xoay", "khối tròn xoay" (KHÔNG PHẢI "đổi xoay", "tron xoay")
+- "được tạo thành" (KHÔNG PHẢI "đều tạo thành", "đươc tạo thành")
+- "giới hạn bởi" (KHÔNG PHẢI "giơi hạn", "giới han")
+- "đường thẳng" (KHÔNG PHẢI "đương thẳng", "đường thăng")
+- "hình phẳng" (KHÔNG PHẢI "hình phăng", "hinh phẳng")
+- "nguyên hàm" (KHÔNG PHẢI "nguyên ham", "nguyen hàm")
+- "đạo hàm" (KHÔNG PHẢI "dao hàm", "đao hàm")
+- "tích phân" (KHÔNG PHẢI "tich phân", "tích phan")
+- "phương trình" (KHÔNG PHẢI "phuơng trình", "phương trinh")
+- "tiệm cận" (KHÔNG PHẢI "tiêm cận", "tiệm can")
+- "độ lệch chuẩn" (KHÔNG PHẢI "độ lêch chuẩn", "đô lệch")
+- "mẫu số liệu" (KHÔNG PHẢI "mẩu số liệu", "mẫu sô liệu")
+- "tần số" (KHÔNG PHẢI "tân số", "tần sô")
+Nếu đọc một từ KHÔNG PHẢI thuật ngữ toán phổ biến → đọc lại, có thể nhầm dấu.
 
 == CÂU HỎI TRẢI DÀI NHIỀU TRANG ==
 - Nếu trang này bắt đầu một câu hỏi nhưng nội dung tiếp tục sang trang sau (câu hỏi bị cắt) → thêm [→TIẾP TRANG SAU] ở cuối câu đó.
