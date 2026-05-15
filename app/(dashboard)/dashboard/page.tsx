@@ -212,16 +212,19 @@ function Skeleton({ className }: { className: string }) {
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [data, setData] = useState<OverviewData | null>(null);
+  const [studyProgress, setStudyProgress] = useState<{ topic: string; percent: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/v1/analytics/overview')
-      .then((r) => {
-        if (!r.ok) throw new Error('Lỗi tải dữ liệu');
-        return r.json();
+    Promise.all([
+      fetch('/api/v1/analytics/overview').then(r => r.ok ? r.json() : null),
+      fetch('/api/v1/study/progress').then(r => r.ok ? r.json() : []),
+    ])
+      .then(([analytics, progress]) => {
+        if (analytics) setData(analytics);
+        if (Array.isArray(progress)) setStudyProgress(progress);
       })
-      .then((d: OverviewData) => setData(d))
       .catch(() => setError('Không thể tải dữ liệu. Vui lòng thử lại.'))
       .finally(() => setLoading(false));
   }, []);
@@ -229,6 +232,11 @@ export default function DashboardPage() {
   const userName = (session?.user as { name?: string })?.name ?? 'bạn';
   const firstName = userName.split(' ').pop() ?? userName;
   const streak = data ? computeStreak(data.weeklyScores) : 0;
+
+  // Calculate overall study progress
+  const totalStudyItems = studyProgress.reduce((s, p) => s + (p as any).total, 0) || 1;
+  const totalStudyRead = studyProgress.reduce((s, p) => s + (p as any).read, 0) || 0;
+  const overallStudyPercent = Math.round((totalStudyRead / totalStudyItems) * 100);
 
   return (
     <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
@@ -299,15 +307,15 @@ export default function DashboardPage() {
             subPositive={data.averageScore >= 70}
           />
           <MetricCard
-            label="Câu đúng tổng"
-            value={formatNumber(data.totalCorrect)}
-            sub="Tổng số câu trả lời đúng"
-            subPositive
+            label="Tiến độ ôn tập"
+            value={`${overallStudyPercent}%`}
+            sub={overallStudyPercent >= 80 ? 'Gần hoàn thành!' : `${totalStudyRead}/${totalStudyItems} phần đã đọc`}
+            subPositive={overallStudyPercent >= 50}
           />
           <MetricCard
-            label="Thời gian ôn tập"
-            value={formatStudyTime(data.totalStudyTimeSecs)}
-            sub="Tổng thời gian học tích lũy"
+            label="Thời gian luyện tập"
+            value={formatStudyTime(Math.max(0, data.totalStudyTimeSecs))}
+            sub="Tổng thời gian làm bài thi"
             subPositive
           />
         </div>
@@ -369,12 +377,23 @@ export default function DashboardPage() {
                 <Skeleton key={i} className="h-6" />
               ))}
             </div>
-          ) : data && data.topicStats.length > 0 ? (
-            <div className="space-y-3">
-              {[...data.topicStats]
-                .sort((a, b) => b.accuracy - a.accuracy)
-                .slice(0, 7)
-                .map((t) => (
+          ) : (() => {
+            // Merge exam stats with study progress
+            const examMap = new Map((data?.topicStats || []).map(t => [t.topic, t.accuracy]));
+            const studyMap = new Map(studyProgress.map((p: any) => [p.topic, p.percent]));
+            const allTopics = new Set([...examMap.keys(), ...studyMap.keys()]);
+
+            const merged = Array.from(allTopics).map(topic => ({
+              topic,
+              examAcc: examMap.get(topic) ?? null,
+              studyPct: studyMap.get(topic) ?? 0,
+              // Combined score: exam accuracy if exists, else study progress
+              combined: examMap.has(topic) ? examMap.get(topic)! : studyMap.get(topic) ?? 0,
+            })).sort((a, b) => b.combined - a.combined);
+
+            return merged.length > 0 ? (
+              <div className="space-y-3">
+                {merged.slice(0, 8).map((t) => (
                   <div key={t.topic} className="flex items-center gap-3">
                     <div className="w-[130px] flex-shrink-0">
                       <span className="text-xs font-semibold text-gray-700">
@@ -382,28 +401,29 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <span
-                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${accuracyDotColor(t.accuracy)}`}
+                      className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${accuracyDotColor(t.combined)}`}
                     />
                     <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
-                          width: `${t.accuracy}%`,
-                          backgroundColor: scoreColor(t.accuracy),
+                          width: `${t.combined}%`,
+                          backgroundColor: scoreColor(t.combined),
                         }}
                       />
                     </div>
                     <span className="w-10 text-right text-xs font-black text-gray-700">
-                      {t.accuracy}%
+                      {t.combined}%
                     </span>
                   </div>
                 ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-400 text-center py-8">
-              Chưa có dữ liệu. Hãy làm bài để xem thống kê!
-            </p>
-          )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-8">
+                Chưa có dữ liệu. Hãy ôn tập hoặc làm bài để xem thống kê!
+              </p>
+            );
+          })()}
         </div>
 
         {/* Right column: weak topics + recent exams */}
@@ -420,35 +440,48 @@ export default function DashboardPage() {
                   <Skeleton key={i} className="h-8" />
                 ))}
               </div>
-            ) : data && data.weakTopics.length > 0 ? (
-              <div className="space-y-2">
-                {data.weakTopics.slice(0, 4).map((topic) => {
-                  const stat = data.topicStats.find((t) => t.topic === topic);
-                  const pct = stat?.accuracy ?? 0;
-                  return (
-                    <div
-                      key={topic}
-                      className="flex items-center justify-between px-3 py-2 rounded-xl bg-red-50 border border-red-100"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-2 h-2 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: scoreColor(pct) }}
-                        />
-                        <span className="text-xs font-semibold text-gray-700">
-                          {TOPIC_LABEL[topic as Topic] ?? topic}
-                        </span>
-                      </div>
-                      <span className="text-xs font-black text-red-600">{pct}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-gray-400 text-center py-4">
-                {data ? '🎉 Không có chủ đề yếu!' : 'Chưa có dữ liệu'}
-              </p>
-            )}
+            ) : (() => {
+              // Topics with low study progress
+              const weakStudy = studyProgress
+                .filter((p: any) => p.percent < 50)
+                .sort((a: any, b: any) => a.percent - b.percent)
+                .slice(0, 4);
+              const weakExam = (data?.weakTopics || []).slice(0, 4);
+              const weakItems = weakStudy.length > 0 ? weakStudy : weakExam.map(t => {
+                const stat = data?.topicStats.find(s => s.topic === t);
+                return { topic: t, percent: stat?.accuracy ?? 0 };
+              });
+
+              return weakItems.length > 0 ? (
+                <div className="space-y-2">
+                  {weakItems.map((item: any) => {
+                    const pct = item.percent ?? item.accuracy ?? 0;
+                    return (
+                      <Link
+                        key={item.topic}
+                        href={`/study?topic=${item.topic}`}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-red-50 border border-red-100 hover:bg-red-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: scoreColor(pct) }}
+                          />
+                          <span className="text-xs font-semibold text-gray-700">
+                            {TOPIC_LABEL[item.topic as Topic] ?? item.topic}
+                          </span>
+                        </div>
+                        <span className="text-xs font-black text-red-600">{pct}%</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 text-center py-4">
+                  {data ? '🎉 Không có chủ đề yếu!' : 'Chưa có dữ liệu'}
+                </p>
+              );
+            })()}
           </div>
 
           {/* Recent exams */}

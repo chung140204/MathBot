@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
-import { scoreQuestion } from '@/lib/scoring';
+import { scoreQuestion, THPT_SCORING } from '@/lib/scoring';
+import { ExamMode } from '@prisma/client';
 
 /**
  * POST /api/v1/exam/submit
@@ -16,38 +17,36 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { answers, timeTakenSecs, topics } = body;
+    const { answers, timeTakenSecs, topics, mode } = body;
 
     if (!answers || !Array.isArray(answers)) {
       return NextResponse.json({ error: 'Invalid answers format' }, { status: 400 });
     }
+
+    // Resolve exam mode
+    const examMode: ExamMode = mode === 'THPT' ? 'THPT' : mode === 'QUICK' ? 'QUICK' : 'STANDARD';
+    const isThpt = examMode === 'THPT';
 
     const questionIds = answers.map((a: { questionId: string }) => a.questionId);
     const questions = await prisma.question.findMany({
       where: { id: { in: questionIds } }
     });
 
-    // 2. Fetch point settings (assume global for now or from first question's exam set)
-    // In a real app, this might come from an ExamSet linked to the session
-    const examSet = await prisma.examSet.findFirst() || {
-      pointPerMC: 1,
-      pointPerTFItem: 0.25,
-      pointPerSA: 0.5
-    };
+    // Scoring config: THPT uses fixed scoring, others use ExamSet or defaults
+    const examSet = isThpt
+      ? { pointPerMC: THPT_SCORING.pointPerMC, pointPerTFItem: THPT_SCORING.pointPerTFItem, pointPerSA: THPT_SCORING.pointPerSA }
+      : (await prisma.examSet.findFirst() || { pointPerMC: 1, pointPerTFItem: 0.25, pointPerSA: 0.5 });
 
     let totalScore = 0;
     const answerRecords = [];
 
-    // 3. Process each answer
     for (const answerData of answers) {
       const question = questions.find((q: { id: string }) => q.id === answerData.questionId);
       if (!question) continue;
 
-      const score = scoreQuestion(question, answerData, examSet);
+      const score = scoreQuestion(question, answerData, examSet, isThpt ? 'THPT' : undefined);
       totalScore += score;
 
-      // Determine correctness (for MC/SA it's binary, for TF it might be partial)
-      // For simplicity, isCorrect is true if score > 0
       const isCorrect = score > 0;
 
       answerRecords.push({
@@ -63,7 +62,9 @@ export async function POST(req: Request) {
       });
     }
 
-    // 4. Create Exam Attempt and Answers
+    // Round totalScore to 2 decimal places
+    totalScore = Math.round(totalScore * 100) / 100;
+
     const attempt = await prisma.examAttempt.create({
       data: {
         userId: session.user.id,

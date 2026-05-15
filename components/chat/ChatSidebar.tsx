@@ -91,7 +91,7 @@ export default function ChatSidebar({
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     if (!confirm('Bạn có chắc chắn muốn xóa cuộc hội thoại này?')) return;
-    
+
     try {
       const res = await fetch(`/api/v1/chat/sessions?sessionId=${sessionId}`, {
         method: 'DELETE',
@@ -101,9 +101,12 @@ export default function ChatSidebar({
           onNewSession();
         }
         fetchSessions();
+      } else {
+        alert('Không thể xóa cuộc hội thoại. Vui lòng thử lại.');
       }
     } catch (error) {
       console.error('Failed to delete session:', error);
+      alert('Lỗi kết nối. Không thể xóa cuộc hội thoại.');
     }
   };
 
@@ -111,12 +114,12 @@ export default function ChatSidebar({
     <div className="w-[300px] h-full bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
       {/* Header */}
       <div className="p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <a href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="w-10 h-10 rounded-xl bg-[#059669] flex items-center justify-center text-white font-black text-lg">
             M
           </div>
           <span className="text-xl font-bold tracking-tight text-[#059669]">MathBot</span>
-        </div>
+        </a>
         <button 
           onClick={onNewSession}
           className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all"

@@ -3,15 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Users, 
-  BookOpen, 
-  FileText, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Users,
+  BookOpen,
+  FileText,
+  Settings,
   LogOut,
-  PlusCircle,
-  Database
+  PlusCircle
 } from 'lucide-react';
 
 const navGroups = [
@@ -29,7 +28,6 @@ const navGroups = [
     label: 'HỆ THỐNG',
     items: [
       { name: 'Cài đặt', href: '/admin/settings', icon: Settings },
-      { name: 'RAG Manager', href: '/admin/rag', icon: Database },
     ]
   }
 ];

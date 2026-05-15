@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Read(//d:/DATN/**)",
+      "Bash(node scripts/fix-backslashes.js)",
+      "Bash(node scripts/add-embedding-column.js)",
+      "WebSearch",
+      "Bash(node scripts/add-study-content-table.js)",
+      "Bash(node scripts/fix-study-content.js)"
+    ]
+  }
+}

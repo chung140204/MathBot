@@ -5,9 +5,18 @@ import { useSession } from 'next-auth/react';
 import MessageBubble from './MessageBubble';
 import MathInput from './MathInput';
 
+interface SourceItem {
+  source: string;
+  topic: string;
+  similarity: number;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  sources?: SourceItem[];
+  feedback?: 'up' | 'down' | null;
+  id?: string;
 }
 
 interface ChatWindowProps {
@@ -39,29 +48,48 @@ export default function ChatWindow({
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [chatMode, setChatMode] = useState<'thinking' | 'fast'>('thinking');
+  const [thinkingSeconds, setThinkingSeconds] = useState(0);
+  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [pendingSources, setPendingSources] = useState<SourceItem[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const sseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isStreamingRef = useRef(false);
 
-  // Load messages when session changes
+  // Track whether current session was created during streaming (to skip history fetch after stream ends)
+  const sessionCreatedDuringStreamRef = useRef(false);
+
+  // Load messages when session changes or streaming ends
   useEffect(() => {
     if (!sessionId) {
-      setMessages([]);
+      if (!isStreamingRef.current) setMessages([]);
       return;
     }
-    
-    // Avoid overwriting active stream with history fetch
-    if (isStreaming) return;
+
+    // Don't fetch history while streaming
+    if (isStreaming || isStreamingRef.current) return;
+
+    // Skip history fetch if this session was just created during streaming
+    // (messages are already in state from the stream)
+    if (sessionCreatedDuringStreamRef.current) {
+      sessionCreatedDuringStreamRef.current = false;
+      return;
+    }
 
     setIsLoadingHistory(true);
     fetch(`/api/v1/chat/sessions?sessionId=${sessionId}`)
       .then((r) => r.json())
       .then((data) => {
+        if (isStreamingRef.current) return;
         if (Array.isArray(data)) {
-          setMessages(data.map((m) => ({ 
-            role: m.role as 'user' | 'assistant', 
-            content: m.content 
+          setMessages(data.map((m) => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            feedback: m.feedback ?? null,
           })));
         } else {
           console.error("Dữ liệu lịch sử không hợp lệ hoặc lỗi:", data);
@@ -70,7 +98,7 @@ export default function ChatWindow({
       })
       .catch(console.error)
       .finally(() => setIsLoadingHistory(false));
-  }, [sessionId, isStreaming]); // Added isStreaming to dependencies for safe synchronization
+  }, [sessionId, isStreaming]);
 
   // Improved Auto-scroll for dynamic content (Math, Images)
   useEffect(() => {
@@ -108,6 +136,12 @@ export default function ChatWindow({
   ) => {
     if ((!text.trim() && !imageBase64) || isStreaming) return;
 
+    // Validate image format before sending
+    if (imageBase64 && !imageBase64.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,/)) {
+      alert('Định dạng ảnh không hợp lệ.');
+      return;
+    }
+
     // Attach image directly into the text using Markdown if there's an image
     // This allows it to be displayed in MessageBubble and stored in DB effortlessly
     let contentToSend = text.trim();
@@ -123,17 +157,32 @@ export default function ChatWindow({
     setSelectedImage(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     setIsStreaming(true);
+    isStreamingRef.current = true;
+    setThinkingSeconds(0);
+    thinkingTimerRef.current = setInterval(() => {
+      setThinkingSeconds((s) => s + 1);
+    }, 1000);
 
     // Setup AbortController
     abortControllerRef.current = new AbortController();
     let accumulated = '';
+    setPendingSources([]);
+
+    // SSE timeout: abort if no data received for 30s
+    const resetSseTimeout = () => {
+      if (sseTimeoutRef.current) clearTimeout(sseTimeoutRef.current);
+      sseTimeoutRef.current = setTimeout(() => {
+        abortControllerRef.current?.abort();
+      }, 30_000);
+    };
+    resetSseTimeout();
 
     // Call API (we also send the raw imageBase64 separately so backend can process it nicely with the Vision model)
     try {
       const res = await fetch('/chat/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, sessionId, userId, imageBase64 }),
+        body: JSON.stringify({ messages: history, sessionId, userId, imageBase64, mode: chatMode }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -150,6 +199,7 @@ export default function ChatWindow({
         const { done, value } = await reader.read();
         if (done) break;
 
+        resetSseTimeout();
         const chunk = decoder.decode(value, { stream: true });
         for (const line of chunk.split('\n')) {
           if (!line.startsWith('data: ')) continue;
@@ -158,16 +208,30 @@ export default function ChatWindow({
           try {
             const parsed = JSON.parse(raw);
             if (parsed.event === 'session') {
+              sessionCreatedDuringStreamRef.current = true;
               onSessionCreated(parsed.sessionId);
+            } else if (parsed.event === 'sources') {
+              setPendingSources(parsed.data || []);
+            } else if (parsed.event === 'loading') {
+              // Server is preparing (RAG search) — streaming will begin shortly
             } else if (parsed.event === 'thinking_start') {
               setIsThinking(true);
               setThinkingExpanded(true);
             } else if (parsed.event === 'thinking_end') {
               setIsThinking(false);
               setThinkingExpanded(false);
-            } else if (parsed.reasoning) {
+              if (thinkingTimerRef.current) {
+                clearInterval(thinkingTimerRef.current);
+                thinkingTimerRef.current = null;
+              }
+            } else if (parsed.reasoning && typeof parsed.reasoning === 'string') {
               setThinkingContent((prev) => prev + parsed.reasoning);
-            } else if (parsed.content) {
+            } else if (parsed.content && typeof parsed.content === 'string') {
+              // Stop timer when first content arrives
+              if (thinkingTimerRef.current) {
+                clearInterval(thinkingTimerRef.current);
+                thinkingTimerRef.current = null;
+              }
               accumulated += parsed.content;
               setStreamingContent(accumulated);
             }
@@ -177,8 +241,8 @@ export default function ChatWindow({
         }
       }
 
-      // Commit streamed message to messages array
-      setMessages((prev) => [...prev, { role: 'assistant', content: accumulated }]);
+      // Commit streamed message to messages array (with sources from RAG)
+      setMessages((prev) => [...prev, { role: 'assistant', content: accumulated, sources: pendingSources }]);
       setStreamingContent('');
       setThinkingContent('');
       setIsThinking(false);
@@ -186,10 +250,11 @@ export default function ChatWindow({
       onMessageSent();
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('User stopped the generation.');
-        // If aborted, keep what we have so far
         if (accumulated.trim()) {
-          setMessages((prev) => [...prev, { role: 'assistant', content: accumulated }]);
+          setMessages((prev) => [...prev, { role: 'assistant', content: accumulated, sources: pendingSources }]);
+        } else if (sseTimeoutRef.current === null) {
+          // Timeout-triggered abort (not user stop) — show error message
+          setMessages((prev) => [...prev, { role: 'assistant', content: 'Phản hồi mất quá lâu. Vui lòng thử lại.' }]);
         }
       } else {
         console.error(err);
@@ -200,6 +265,15 @@ export default function ChatWindow({
       setThinkingExpanded(false);
     } finally {
       setIsStreaming(false);
+      isStreamingRef.current = false;
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = null;
+      }
+      if (sseTimeoutRef.current) {
+        clearTimeout(sseTimeoutRef.current);
+        sseTimeoutRef.current = null;
+      }
     }
   };
 
@@ -304,12 +378,38 @@ export default function ChatWindow({
           ) : (
             <>
               {messages.map((m, i) => (
-                <MessageBubble 
-                  key={i} 
-                  message={m} 
+                <MessageBubble
+                  key={i}
+                  message={m}
                   onEdit={(newContent) => handleEditSubmit(i, newContent)}
+                  onFeedback={m.id ? async (fb) => {
+                    await fetch('/api/v1/chat/feedback', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ messageId: m.id, feedback: fb }),
+                    });
+                    setMessages(prev => prev.map((msg, idx) => idx === i ? { ...msg, feedback: fb } : msg));
+                  } : undefined}
                 />
               ))}
+              {/* Typing indicator with timer while waiting for response */}
+              {isStreaming && !streamingContent && (
+                <div className="flex items-center gap-3 py-4 px-1">
+                  <div className="w-8 h-8 rounded-full bg-[#059669] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                    M
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-gray-100">
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {thinkingContent ? 'Đang suy nghĩ' : 'Đang xử lý'}... {thinkingSeconds}s
+                    </span>
+                  </div>
+                </div>
+              )}
               {/* Thinking box */}
               {isStreaming && (isThinking || thinkingContent) && (
                 <div className="mb-3 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 text-xs">
@@ -324,7 +424,7 @@ export default function ChatWindow({
                         <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '240ms' }} />
                       </span>
                     )}
-                    <span>{isThinking ? 'Đang suy nghĩ...' : 'Đã suy nghĩ xong'}</span>
+                    <span>{isThinking ? `Đang suy nghĩ... ${thinkingSeconds}s` : `Đã suy nghĩ xong (${thinkingSeconds}s)`}</span>
                     <span className="ml-auto">{thinkingExpanded ? '▲' : '▼'}</span>
                   </button>
                   {thinkingExpanded && thinkingContent && (
@@ -359,6 +459,27 @@ export default function ChatWindow({
         <div className="max-w-4xl mx-auto relative">
           {/* Stop Button */}
 
+
+          {/* Mode selector */}
+          <div className="flex items-center gap-1.5 mb-2">
+            {([
+              { value: 'fast', label: 'Nhanh', icon: '⚡' },
+              { value: 'thinking', label: 'Suy nghĩ sâu', icon: '🧠' },
+            ] as const).map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setChatMode(m.value)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  chatMode === m.value
+                    ? 'bg-[#059669] text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {m.icon} {m.label}
+              </button>
+            ))}
+          </div>
 
           <form
           onSubmit={handleSubmit}

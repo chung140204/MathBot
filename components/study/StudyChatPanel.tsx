@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import MessageBubble from '@/components/chat/MessageBubble';
+import StudyMathRenderer from '@/components/study/StudyMathRenderer';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -52,48 +52,58 @@ export default function StudyChatPanel({ topicContext, topicLabel }: { topicCont
     setIsStreaming(true);
 
     try {
-      // Append topic context
-      const contextualMessages = [
-        { role: 'system', content: `Current study context: ${topicContext}. User is currently reading this topic.` },
-        ...messages,
-        userMessage
+      // Build messages with topic context as first user context
+      const chatMessages = [
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: text }
       ];
 
-      const response = await fetch('/api/v1/chat', {
+      const response = await fetch('/chat/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: contextualMessages }),
+        body: JSON.stringify({
+          messages: chatMessages,
+          mode: 'fast',
+        }),
       });
 
       if (!response.ok) throw new Error('API Error');
 
       const reader = response.body?.getReader();
-      let assistantMessage: Message = { role: 'assistant', content: '' };
-      setMessages((prev) => [...prev, assistantMessage]);
+      const decoder = new TextDecoder();
+      let accumulated = '';
 
       while (true) {
         const { done, value } = await reader!.read();
         if (done) break;
 
-        const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') break;
-            
-            try {
-              const { content } = JSON.parse(data);
-              assistantMessage.content += content;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6);
+          if (raw === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.content && typeof parsed.content === 'string') {
+              accumulated += parsed.content;
               setMessages((prev) => {
                 const updated = [...prev];
-                updated[updated.length - 1] = { ...assistantMessage };
+                if (updated[updated.length - 1]?.role === 'assistant') {
+                  updated[updated.length - 1] = { role: 'assistant', content: accumulated };
+                } else {
+                  updated.push({ role: 'assistant', content: accumulated });
+                }
                 return updated;
               });
-            } catch (e) {}
-          }
+            }
+          } catch {}
         }
+      }
+
+      // Ensure assistant message exists if accumulated is empty
+      if (!accumulated) {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Xin lỗi, không nhận được phản hồi. Vui lòng thử lại.' }]);
       }
     } catch (error) {
       console.error(error);
@@ -119,8 +129,7 @@ export default function StudyChatPanel({ topicContext, topicLabel }: { topicCont
                 ? 'bg-[#059669] text-white rounded-tr-none' 
                 : 'bg-white text-gray-800 border border-gray-100 shadow-sm rounded-tl-none'
             }`}>
-               {/* We just use string rendering for simplicity or MessageBubble if it fits */}
-               <div className="math-markup">{m.content}</div>
+               <StudyMathRenderer content={m.content} />
             </div>
           </div>
         ))}

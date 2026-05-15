@@ -11,12 +11,15 @@ interface MathInputProps {
   disabled?: boolean;
 }
 
+const MAX_IMAGE_SIZE_MB = 4;
+const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+
 const FORMULA_PALETTE = [
-  { label: 'Phân số', tex: '\\frac{ }{ }', icon: 'a/b', cursorOffset: 6 }, // inside first {}
-  { label: 'Căn bậc 2', tex: '\\sqrt{ }', icon: '√x', cursorOffset: 6 },
-  { label: 'Lũy thừa', tex: '^{ }', icon: 'xⁿ', cursorOffset: 2 },
-  { label: 'Tích phân', tex: '\\int_{ }^{ }', icon: '∫', cursorOffset: 6 },
-  { label: 'Tổng (Sigma)', tex: '\\sum_{ }^{ }', icon: 'Σ', cursorOffset: 6 },
+  { label: 'Phân số', tex: '\\frac{ }{ }', icon: 'a/b' },
+  { label: 'Căn bậc 2', tex: '\\sqrt{ }', icon: '√x' },
+  { label: 'Lũy thừa', tex: '^{ }', icon: 'xⁿ' },
+  { label: 'Tích phân', tex: '\\int_{ }^{ }', icon: '∫' },
+  { label: 'Tổng (Sigma)', tex: '\\sum_{ }^{ }', icon: 'Σ' },
 ];
 
 export default function MathInput({ value, onChange, onEnter, image, onImageSelect, disabled }: MathInputProps) {
@@ -55,40 +58,79 @@ export default function MathInput({ value, onChange, onEnter, image, onImageSele
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   };
 
-  const insertFormula = (tex: string, cursorOffset: number) => {
+  const insertFormula = (tex: string) => {
     const ta = textareaRef.current;
     if (!ta) return;
-    
+
     // Wrap in $ $ for KaTeX rendering in MessageBubble
     const insertString = `$${tex}$`;
+
+    // Place cursor inside the first { } placeholder
+    const firstBraceContent = tex.indexOf('{ }');
+    const cursorOffset = firstBraceContent !== -1
+      ? firstBraceContent + 2 // position after "{ " → inside braces
+      : tex.length; // fallback: end of formula
     const finalOffset = cursorOffset + 1; // +1 for the opening $
-    
+
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
-    
+
     const newValue = value.substring(0, start) + insertString + value.substring(end);
     onChange(newValue);
-    
+
     const newCursorPos = start + finalOffset;
-    
+
     // Reset cursor position after React re-renders
     setTimeout(() => {
       ta.focus();
       ta.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
-    
+
     setShowPalette(false);
+  };
+
+  const compressImage = (dataUrl: string, maxWidth = 1024): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = dataUrl;
+    });
+  };
+
+  const readFileAsBase64 = (file: File) => {
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      alert(`Ảnh quá lớn (tối đa ${MAX_IMAGE_SIZE_MB}MB). Vui lòng chọn ảnh nhỏ hơn.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const raw = event.target?.result as string;
+      const compressed = await compressImage(raw);
+      if (onImageSelect) onImageSelect(compressed);
+    };
+    reader.onerror = () => {
+      console.error('Failed to read image file');
+      alert('Không thể đọc file ảnh. Vui lòng thử lại.');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        if (onImageSelect) onImageSelect(base64);
-      };
-      reader.readAsDataURL(file);
+      readFileAsBase64(file);
     }
   };
 
@@ -100,14 +142,9 @@ export default function MathInput({ value, onChange, onEnter, image, onImageSele
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile();
         if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const base64 = event.target?.result as string;
-            if (onImageSelect) onImageSelect(base64);
-          };
-          reader.readAsDataURL(file);
+          readFileAsBase64(file);
         }
-        e.preventDefault(); // Prevent pasting the image name/URL as text
+        e.preventDefault();
         break;
       }
     }
@@ -145,7 +182,7 @@ export default function MathInput({ value, onChange, onEnter, image, onImageSele
             <button
               key={i}
               type="button"
-              onClick={() => insertFormula(formula.tex, formula.cursorOffset)}
+              onClick={() => insertFormula(formula.tex)}
               className="h-9 min-w-[40px] px-2 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 text-gray-700 rounded-lg text-sm font-semibold transition-all border border-gray-200 flex items-center justify-center"
               title={formula.label}
             >

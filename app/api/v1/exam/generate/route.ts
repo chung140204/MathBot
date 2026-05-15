@@ -3,7 +3,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authOptions } from '@/lib/auth';
 import { AppError, ErrorCode } from '@/lib/errors';
-import { generateExamQuestions } from '@/lib/exam-generator';
+import {
+  generateQuickExam,
+  generateStandardExam,
+  generateThptExam,
+} from '@/lib/exam-generator';
 
 const TopicEnum = z.enum([
   'DERIVATIVES', 'INTEGRALS', 'FUNCTIONS', 'LIMITS', 'COMPLEX_NUMBERS',
@@ -11,19 +15,31 @@ const TopicEnum = z.enum([
   'ANALYTIC_GEOMETRY', 'SOLID_GEOMETRY',
 ]);
 
-const generateSchema = z.object({
-  topics: z.array(TopicEnum).min(1, 'Cần chọn ít nhất một chủ đề'),
-  totalQuestions: z.number().int().min(10).max(100).default(50),
-  difficultyWeights: z.object({
-    RECOGNITION: z.number().min(0).max(1),
-    COMPREHENSION: z.number().min(0).max(1),
-    APPLICATION: z.number().min(0).max(1),
-    ADVANCED: z.number().min(0).max(1),
-  }).refine(
-    (w) => Math.abs(w.RECOGNITION + w.COMPREHENSION + w.APPLICATION + w.ADVANCED - 1) < 0.05,
-    { message: 'Tổng weight phải xấp xỉ bằng 1' },
-  ).optional(),
+const DifficultyEnum = z.enum([
+  'RECOGNITION', 'COMPREHENSION', 'APPLICATION', 'ADVANCED',
+]);
+
+const quickSchema = z.object({
+  mode: z.literal('quick'),
+  topic: TopicEnum,
+  difficulty: DifficultyEnum.optional(),
 });
+
+const standardSchema = z.object({
+  mode: z.literal('standard'),
+  topics: z.array(TopicEnum).min(1, 'Cần chọn ít nhất một chủ đề'),
+  difficulty: DifficultyEnum.optional(),
+});
+
+const thptSchema = z.object({
+  mode: z.literal('thpt'),
+});
+
+const generateSchema = z.discriminatedUnion('mode', [
+  quickSchema,
+  standardSchema,
+  thptSchema,
+]);
 
 export async function POST(req: Request) {
   try {
@@ -38,18 +54,29 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = generateSchema.parse(body);
 
-    const questions = await generateExamQuestions({
-      topics: data.topics,
-      totalQuestions: data.totalQuestions,
-      difficultyWeights: data.difficultyWeights,
-    });
+    let result;
+
+    switch (data.mode) {
+      case 'quick':
+        result = await generateQuickExam(data.topic, data.difficulty);
+        break;
+      case 'standard':
+        result = await generateStandardExam(data.topics, data.difficulty);
+        break;
+      case 'thpt':
+        result = await generateThptExam();
+        break;
+    }
 
     const examSessionId = crypto.randomUUID();
 
     return NextResponse.json({
       success: true,
-      questions,
+      questions: result.questions,
       examSessionId,
+      mode: result.mode,
+      timeLimit: result.timeLimit,
+      scoring: result.scoring,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

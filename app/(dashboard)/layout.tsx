@@ -49,6 +49,15 @@ const MAIN_MENU = [
     ),
   },
   {
+    href: '/bookmarks',
+    label: 'Bài đã lưu',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    ),
+  },
+  {
     href: '/chat',
     label: 'AI Chat',
     icon: (
@@ -125,7 +134,7 @@ function TopicMenu({ realStats, isVisible }: { realStats: Record<string, number>
       <ul className="space-y-0.5">
         {TOPIC_CONFIG.map((topic) => {
           const colors = COLOR_MAP[topic.color as keyof typeof COLOR_MAP];
-          const acc = realStats ? (realStats[topic.key] ?? topic.mockAcc ?? 0) : topic.mockAcc;
+          const acc = realStats ? (realStats[topic.key] ?? 0) : 0;
           const isExpanded = openTopic === topic.key;
           const subs = TOPIC_SUBSECTIONS[topic.key as Topic] || [];
 
@@ -206,19 +215,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    fetch('/api/v1/analytics/overview')
+  const fetchStudyProgress = () => {
+    fetch('/api/v1/study/progress')
       .then(res => res.json())
       .then(data => {
-        if (data && data.topicStats) {
+        if (Array.isArray(data)) {
           const statsMap: Record<string, number> = {};
-          data.topicStats.forEach((t: any) => {
-            statsMap[t.topic] = t.accuracy;
-          });
+          data.forEach((p: any) => { statsMap[p.topic] = p.percent; });
           setRealStats(statsMap);
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchStudyProgress();
+
+    // Re-fetch when study page marks content as read
+    const handler = () => fetchStudyProgress();
+    window.addEventListener('study-progress-updated', handler);
+    return () => window.removeEventListener('study-progress-updated', handler);
   }, []);
 
   if (status === 'loading') {

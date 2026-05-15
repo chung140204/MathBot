@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { TOPICS as CENTRAL_TOPICS } from '@/lib/constants/topics';
 
-// Map central topics to local format (key instead of id)
 const TOPICS = CENTRAL_TOPICS.map(t => ({ key: t.id, label: t.label }));
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -28,31 +27,31 @@ const EXAM_MODES = [
     key: 'quick' as ExamMode,
     icon: '⚡',
     title: 'Thi nhanh',
-    desc: '10 câu · Không giới hạn thời gian · Phù hợp ôn lướt',
+    desc: '10 câu · 20 phút · 1 chủ đề',
     badge: 'Dễ bắt đầu',
     badgeClass: 'bg-[#f0fdf9] text-[#059669] border border-[#059669]/20',
     count: 10,
-    timeMins: null,
+    timeMins: 20,
   },
   {
     key: 'standard' as ExamMode,
     icon: '🎯',
     title: 'Thi chuẩn',
-    desc: '20 câu · 30 phút · Mô phỏng đề thi thật',
+    desc: '30 câu · 45 phút · Nhiều chủ đề',
     badge: 'Phổ biến nhất',
     badgeClass: 'bg-blue-50 text-[#0891b2] border border-[#0891b2]/20',
-    count: 20,
-    timeMins: 30,
+    count: 30,
+    timeMins: 45,
   },
   {
     key: 'thpt' as ExamMode,
     icon: '🏆',
     title: 'Thi thử THPT',
-    desc: '40 câu · 60 phút · Độ khó như đề thi quốc gia',
+    desc: '22 câu · 90 phút · Cấu trúc đề thi quốc gia 2025',
     badge: 'Thử thách',
     badgeClass: 'bg-purple-50 text-purple-600 border border-purple-200',
-    count: 40,
-    timeMins: 60,
+    count: 22,
+    timeMins: 90,
   },
 ];
 
@@ -67,19 +66,22 @@ export default function PracticePage() {
   const [difficulty, setDifficulty] = useState<Difficulty>('all');
   const [starting, setStarting] = useState(false);
 
-  const userName = (session?.user as { name?: string })?.name ?? 'bạn';
   const currentMode = EXAM_MODES.find((m) => m.key === mode)!;
-
-  // Streak (would come from API in real usage — shown as static for now)
   const streak = 7;
 
   function toggleTopic(key: string) {
-    setSelectedTopics((prev) =>
-      prev.includes(key) ? prev.filter((t) => t !== key) : [...prev, key]
-    );
+    if (mode === 'quick') {
+      // Quick mode: single-select only
+      setSelectedTopics(prev => prev[0] === key ? [] : [key]);
+    } else {
+      setSelectedTopics((prev) =>
+        prev.includes(key) ? prev.filter((t) => t !== key) : [...prev, key]
+      );
+    }
   }
 
   function selectAllTopics() {
+    if (mode === 'quick') return; // not applicable for quick mode
     setSelectedTopics(TOPICS.map((t) => t.key));
   }
 
@@ -87,25 +89,55 @@ export default function PracticePage() {
     setSelectedTopics([]);
   }
 
-  function buildExamUrl(customTopics?: string[]) {
-    const topics = customTopics ?? selectedTopics;
+  function buildExamUrl() {
     const params = new URLSearchParams();
     params.set('mode', mode);
-    params.set('count', String(currentMode.count));
-    if (currentMode.timeMins) params.set('time', String(currentMode.timeMins));
-    if (topics.length > 0) params.set('topics', topics.join(','));
-    if (difficulty !== 'all') params.set('difficulty', difficulty);
+    params.set('autostart', 'true');
+
+    if (mode === 'quick') {
+      if (selectedTopics.length > 0) {
+        params.set('topic', selectedTopics[0]);
+      }
+      if (difficulty !== 'all') params.set('difficulty', difficulty);
+    } else if (mode === 'standard') {
+      if (selectedTopics.length > 0) params.set('topics', selectedTopics.join(','));
+      if (difficulty !== 'all') params.set('difficulty', difficulty);
+    }
+    // thpt: no extra params needed
     return `/exam?${params.toString()}`;
   }
 
   function handleQuickStart() {
     setStarting(true);
-    router.push(buildExamUrl([])); // all topics, no filter
+    // For quick mode without topic selected, pick a random one
+    if (mode === 'quick' && selectedTopics.length === 0) {
+      const randomTopic = TOPICS[Math.floor(Math.random() * TOPICS.length)].key;
+      const params = new URLSearchParams();
+      params.set('mode', 'quick');
+      params.set('autostart', 'true');
+      params.set('topic', randomTopic);
+      if (difficulty !== 'all') params.set('difficulty', difficulty);
+      router.push(`/exam?${params.toString()}`);
+      return;
+    }
+    router.push(buildExamUrl());
   }
 
   function handleCustomStart() {
+    // Validate: quick mode needs exactly 1 topic
+    if (mode === 'quick' && selectedTopics.length === 0) {
+      alert('Vui lòng chọn 1 chủ đề cho chế độ Thi nhanh.');
+      return;
+    }
     setStarting(true);
     router.push(buildExamUrl());
+  }
+
+  // Reset topic selection when switching modes
+  function handleModeChange(newMode: ExamMode) {
+    setMode(newMode);
+    setSelectedTopics([]);
+    setDifficulty('all');
   }
 
   return (
@@ -114,11 +146,11 @@ export default function PracticePage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-2">
-            Thi ngẫu nhiên{' '}
+            Luyện tập{' '}
             <span className="text-amber-400">⚡</span>
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Bắt đầu ngay — câu hỏi được chọn ngẫu nhiên từ toàn bộ ngân hàng
+            Chọn chế độ thi phù hợp và bắt đầu luyện đề
           </p>
         </div>
         {streak > 0 && (
@@ -131,23 +163,24 @@ export default function PracticePage() {
 
       {/* ── Hero card ── */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#059669] via-[#0a9578] to-[#0891b2] p-8 lg:p-10 text-white shadow-xl">
-        {/* Decorative blobs */}
         <div className="pointer-events-none absolute top-[-20%] right-[10%] w-[35%] h-[140%] rounded-full bg-white/5 blur-3xl" />
         <div className="pointer-events-none absolute bottom-[-30%] left-[30%] w-[40%] h-[120%] rounded-full bg-[#0891b2]/20 blur-3xl" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center gap-8">
-          {/* Left content */}
           <div className="flex-1">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/60 mb-3">
-              THI NHANH
+              {mode === 'thpt' ? 'THI THỬ THPT' : mode === 'standard' ? 'THI CHUẨN' : 'THI NHANH'}
             </p>
             <h2 className="text-4xl lg:text-5xl font-black leading-tight mb-4 tracking-tight">
               Sẵn sàng chiến đấu?
             </h2>
-            <p className="text-2xl mb-4 leading-none">⚡</p>
+            <p className="text-2xl mb-4 leading-none">{currentMode.icon}</p>
             <p className="text-white/80 text-base leading-relaxed mb-8 max-w-md">
-              Hệ thống sẽ tự chọn câu hỏi ngẫu nhiên từ 11 chủ đề Toán 12.
-              Không cần chuẩn bị — bắt đầu ngay!
+              {mode === 'thpt'
+                ? 'Đề thi theo cấu trúc THPT Quốc gia 2025: 12 trắc nghiệm + 4 đúng/sai + 6 trả lời ngắn. Thang điểm 10.'
+                : mode === 'standard'
+                ? 'Tự chọn chủ đề và mức độ khó. 30 câu trong 45 phút.'
+                : 'Chọn 1 chủ đề, luyện nhanh 10 câu trong 20 phút.'}
             </p>
             <div className="flex flex-wrap gap-3">
               <button
@@ -158,27 +191,30 @@ export default function PracticePage() {
                 {starting ? (
                   <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
                 ) : null}
-                Thi ngay →
+                {mode === 'thpt' ? 'Thi thử ngay →' : 'Thi ngay →'}
               </button>
-              <button
-                onClick={() => {
-                  document
-                    .getElementById('custom-section')
-                    ?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="px-7 py-3.5 bg-white/10 border border-white/25 text-white font-black rounded-2xl hover:bg-white/20 active:scale-95 transition-all"
-              >
-                Tự chọn đề
-              </button>
+              {mode !== 'thpt' && (
+                <button
+                  onClick={() => {
+                    document
+                      .getElementById('custom-section')
+                      ?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="px-7 py-3.5 bg-white/10 border border-white/25 text-white font-black rounded-2xl hover:bg-white/20 active:scale-95 transition-all"
+                >
+                  Tự chọn đề
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Right stat */}
           <div className="flex-shrink-0 text-right lg:text-right">
             <p className="text-8xl lg:text-9xl font-black leading-none tracking-tighter text-white drop-shadow-lg">
-              200+
+              {currentMode.count}
             </p>
-            <p className="text-white/70 font-semibold text-base mt-1">câu hỏi trong kho</p>
+            <p className="text-white/70 font-semibold text-base mt-1">
+              câu · {currentMode.timeMins} phút
+            </p>
           </div>
         </div>
       </div>
@@ -190,7 +226,7 @@ export default function PracticePage() {
           {EXAM_MODES.map((m) => (
             <button
               key={m.key}
-              onClick={() => setMode(m.key)}
+              onClick={() => handleModeChange(m.key)}
               className={`relative text-left p-5 rounded-2xl border-2 transition-all hover:shadow-md active:scale-[0.98]
                 ${
                   mode === m.key
@@ -216,118 +252,171 @@ export default function PracticePage() {
         </div>
       </section>
 
-      {/* ── Tùy chỉnh nhanh ── */}
-      <section id="custom-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-black text-gray-900">Tùy chỉnh nhanh</h2>
-          <span className="text-xs text-gray-400 font-medium">Bỏ qua để thi ngẫu nhiên tất cả chủ đề</span>
-        </div>
-
-        {/* Topic chips */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-gray-600 uppercase tracking-wider">
-              Chủ đề{' '}
-              <span className="text-[#059669] font-black">
-                {selectedTopics.length === 0
-                  ? '(tất cả)'
-                  : `(${selectedTopics.length}/${TOPICS.length})`}
-              </span>
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={selectAllTopics}
-                className="text-[11px] font-bold text-[#059669] hover:underline"
-              >
-                Chọn tất cả
-              </button>
-              <span className="text-gray-300">·</span>
-              <button
-                onClick={clearTopics}
-                className="text-[11px] font-bold text-gray-400 hover:text-red-500 hover:underline"
-              >
-                Xóa
-              </button>
+      {/* ── THPT info card (only in thpt mode) ── */}
+      {mode === 'thpt' && (
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+          <h2 className="text-base font-black text-gray-900">Cấu trúc đề thi THPT Quốc gia 2025</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+              <p className="text-xs font-black text-emerald-600 uppercase tracking-wider mb-1">Phần I — Trắc nghiệm</p>
+              <p className="text-2xl font-black text-emerald-700">12 câu</p>
+              <p className="text-xs text-emerald-600 mt-1">0.25 điểm/câu · Tổng 3.0đ</p>
+            </div>
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+              <p className="text-xs font-black text-blue-600 uppercase tracking-wider mb-1">Phần II — Đúng/Sai</p>
+              <p className="text-2xl font-black text-blue-700">4 câu</p>
+              <p className="text-xs text-blue-600 mt-1">Tối đa 1.0đ/câu · Tổng 4.0đ</p>
+            </div>
+            <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+              <p className="text-xs font-black text-amber-600 uppercase tracking-wider mb-1">Phần III — Trả lời ngắn</p>
+              <p className="text-2xl font-black text-amber-700">6 câu</p>
+              <p className="text-xs text-amber-600 mt-1">0.5 điểm/câu · Tổng 3.0đ</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {TOPICS.map((t) => {
-              const active = selectedTopics.includes(t.key);
-              return (
+          <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+            <div className="text-sm text-gray-500">
+              <span className="font-bold text-gray-800">22 câu</span> · 90 phút · Thang điểm 10 · Tất cả 11 chủ đề
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+            <p className="font-bold text-gray-600 mb-1">Thang điểm Đúng/Sai (theo đề thi thật):</p>
+            <p>0-1 ý đúng = 0đ · 2 ý đúng = 0.25đ · 3 ý đúng = 0.5đ · 4 ý đúng = 1.0đ</p>
+          </div>
+        </section>
+      )}
+
+      {/* ── Tùy chỉnh nhanh (hidden for thpt mode) ── */}
+      {mode !== 'thpt' && (
+        <section id="custom-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-black text-gray-900">Tùy chỉnh nhanh</h2>
+            <span className="text-xs text-gray-400 font-medium">
+              {mode === 'quick'
+                ? 'Chọn 1 chủ đề để luyện tập'
+                : 'Bỏ qua để thi ngẫu nhiên tất cả chủ đề'}
+            </span>
+          </div>
+
+          {/* Topic chips */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-black text-gray-600 uppercase tracking-wider">
+                Chủ đề{' '}
+                <span className="text-[#059669] font-black">
+                  {mode === 'quick'
+                    ? selectedTopics.length === 0 ? '(chọn 1)' : `(${selectedTopics[0] ? '1 đã chọn' : 'chọn 1'})`
+                    : selectedTopics.length === 0
+                    ? '(tất cả)'
+                    : `(${selectedTopics.length}/${TOPICS.length})`}
+                </span>
+              </p>
+              {mode !== 'quick' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={selectAllTopics}
+                    className="text-[11px] font-bold text-[#059669] hover:underline"
+                  >
+                    Chọn tất cả
+                  </button>
+                  <span className="text-gray-300">·</span>
+                  <button
+                    onClick={clearTopics}
+                    className="text-[11px] font-bold text-gray-400 hover:text-red-500 hover:underline"
+                  >
+                    Xóa
+                  </button>
+                </div>
+              )}
+              {mode === 'quick' && selectedTopics.length > 0 && (
                 <button
-                  key={t.key}
-                  onClick={() => toggleTopic(t.key)}
+                  onClick={clearTopics}
+                  className="text-[11px] font-bold text-gray-400 hover:text-red-500 hover:underline"
+                >
+                  Bỏ chọn
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {TOPICS.map((t) => {
+                const active = selectedTopics.includes(t.key);
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => toggleTopic(t.key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all
+                      ${
+                        active
+                          ? 'bg-[#059669] text-white border-[#059669] shadow-sm'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-[#059669] hover:text-[#059669]'
+                      }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Difficulty chips */}
+          <div>
+            <p className="text-xs font-black text-gray-600 uppercase tracking-wider mb-3">
+              Mức độ
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {DIFFICULTIES.map((d) => (
+                <button
+                  key={d.key}
+                  onClick={() => setDifficulty(d.key)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all
                     ${
-                      active
-                        ? 'bg-[#059669] text-white border-[#059669] shadow-sm'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-[#059669] hover:text-[#059669]'
+                      difficulty === d.key
+                        ? 'bg-[#0891b2] text-white border-[#0891b2] shadow-sm'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-[#0891b2] hover:text-[#0891b2]'
                     }`}
                 >
-                  {t.label}
+                  {d.label}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Difficulty chips */}
-        <div>
-          <p className="text-xs font-black text-gray-600 uppercase tracking-wider mb-3">
-            Mức độ
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {DIFFICULTIES.map((d) => (
-              <button
-                key={d.key}
-                onClick={() => setDifficulty(d.key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all
-                  ${
-                    difficulty === d.key
-                      ? 'bg-[#0891b2] text-white border-[#0891b2] shadow-sm'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-[#0891b2] hover:text-[#0891b2]'
-                  }`}
-              >
-                {d.label}
-              </button>
-            ))}
+          {/* Summary + start button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-gray-100">
+            <div className="text-sm text-gray-500 space-y-0.5">
+              <p>
+                <span className="font-bold text-gray-800">{currentMode.count} câu</span>
+                {` · ${currentMode.timeMins} phút`}
+              </p>
+              <p>
+                {mode === 'quick'
+                  ? selectedTopics.length === 0
+                    ? 'Chưa chọn chủ đề'
+                    : `Chủ đề: ${TOPICS.find(t => t.key === selectedTopics[0])?.label}`
+                  : selectedTopics.length === 0
+                  ? 'Tất cả 11 chủ đề'
+                  : `${selectedTopics.length} chủ đề đã chọn`}
+                {difficulty !== 'all'
+                  ? ` · ${DIFFICULTIES.find((d) => d.key === difficulty)?.label}`
+                  : ''}
+              </p>
+            </div>
+            <button
+              onClick={handleCustomStart}
+              disabled={starting}
+              className="flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#059669] to-[#0891b2] text-white font-black rounded-2xl shadow-lg shadow-[#059669]/25 hover:shadow-xl hover:shadow-[#059669]/30 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-70"
+            >
+              {starting ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              )}
+              Bắt đầu thi
+            </button>
           </div>
-        </div>
-
-        {/* Summary + start button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-gray-100">
-          <div className="text-sm text-gray-500 space-y-0.5">
-            <p>
-              <span className="font-bold text-gray-800">{currentMode.count} câu</span>
-              {currentMode.timeMins
-                ? ` · ${currentMode.timeMins} phút`
-                : ' · Không giới hạn thời gian'}
-            </p>
-            <p>
-              {selectedTopics.length === 0
-                ? 'Tất cả 11 chủ đề'
-                : `${selectedTopics.length} chủ đề đã chọn`}
-              {difficulty !== 'all'
-                ? ` · ${DIFFICULTIES.find((d) => d.key === difficulty)?.label}`
-                : ''}
-            </p>
-          </div>
-          <button
-            onClick={handleCustomStart}
-            disabled={starting}
-            className="flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#059669] to-[#0891b2] text-white font-black rounded-2xl shadow-lg shadow-[#059669]/25 hover:shadow-xl hover:shadow-[#059669]/30 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-70"
-          >
-            {starting ? (
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            )}
-            Bắt đầu thi
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── Gợi ý ôn tập ── */}
       <section>
@@ -359,8 +448,8 @@ export default function PracticePage() {
             <button
               key={item.topic}
               onClick={() => {
+                handleModeChange('quick');
                 setSelectedTopics([item.topic]);
-                setMode('quick');
                 document
                   .getElementById('custom-section')
                   ?.scrollIntoView({ behavior: 'smooth' });

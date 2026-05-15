@@ -35,7 +35,7 @@ export const authOptions: NextAuthOptions = {
 
           // Tìm user bằng SQL thuần (bypass Prisma adapter issue)
           const rows = await sql`
-            SELECT id, email, name, password, role
+            SELECT id, email, name, password, role, "isLocked" as is_locked
             FROM users
             WHERE email = ${credentials.email}
             LIMIT 1
@@ -61,6 +61,10 @@ export const authOptions: NextAuthOptions = {
 
           if (!isValid) {
             throw new Error('Mật khẩu không chính xác.');
+          }
+
+          if (user.is_locked) {
+            throw new Error('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
           }
 
           const result = {

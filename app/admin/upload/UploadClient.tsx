@@ -3,26 +3,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Toaster } from 'react-hot-toast';
 import AdminSidebar from '@/components/AdminSidebar';
-import { 
-  FileSpreadsheet, 
-  FileText, 
-  Layers, 
-  History, 
-  Check, 
-  Upload, 
-  ArrowRight, 
-  Download, 
-  AlertCircle, 
+import MathRenderer from '@/components/exam/MathRenderer';
+import {
+  FileSpreadsheet,
+  FileText,
+  History,
+  Check,
+  Upload,
+  ArrowRight,
+  Download,
+  AlertCircle,
   CheckCircle2,
   Info,
   PenLine,
-  FileSearch,
   FileCheck,
   Loader2,
   AlertTriangle
 } from 'lucide-react';
 
 import ManualInputForm from '@/components/admin/ManualInputForm';
+import { ExtractedQuestion } from '@/lib/ocr-prompt';
+import { pdfToImages, cropPageImage } from '@/lib/pdf-to-images';
 
 // --- Constants ---
 
@@ -119,8 +120,8 @@ interface ValidationRow {
 interface ValidationData {
   total: number;
   valid: number;
-  error: number;
-  duplicate: number;
+  errorCount: number;
+  dupCount: number;
   rows: ValidationRow[];
 }
 
@@ -158,11 +159,124 @@ export default function UploadClient({ user }: { user: AuthUser }) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- THPT OCR states ---
+  const [thptYear, setThptYear] = useState('2025');
+  const [thptCode, setThptCode] = useState('');
+  const [thptFiles, setThptFiles] = useState<File[]>([]);
+  const [ocrQuestions, setOcrQuestions] = useState<ExtractedQuestion[]>([]);
+  const [ocrProgress, setOcrProgress] = useState({ current: 0, total: 22 });
+  const [ocrStatus, setOcrStatus] = useState<'idle' | 'converting' | 'extracting' | 'done' | 'saving' | 'saved' | 'error'>('idle');
+  const [ocrError, setOcrError] = useState('');
+  const thptFileRef = useRef<HTMLInputElement>(null);
+
+  // Image crop states
+  const [pageDataUrls, setPageDataUrls] = useState<string[]>([]);
+  const [pagePositions, setPagePositions] = useState<Record<number, { label: string; type?: string; yStart: number; yEnd: number; xStart?: number; xEnd?: number; questionLabel?: string }[]>>({});
+  const [questionFigures, setQuestionFigures] = useState<Record<number, string>>({}); // questionNumber → figure/table crop data URL
+
+  // Persist OCR results to sessionStorage so navigation doesn't lose them
+  const OCR_STORAGE_KEY = 'mathbot_ocr_session';
+  useEffect(() => {
+    if (ocrStatus === 'done' && ocrQuestions.length > 0) {
+      try {
+        sessionStorage.setItem(OCR_STORAGE_KEY, JSON.stringify({
+          ocrQuestions, ocrStatus, ocrProgress, questionFigures, pagePositions,
+          thptYear, thptCode,
+        }));
+      } catch { /* sessionStorage full or unavailable */ }
+    } else if (ocrStatus === 'saved' || ocrStatus === 'idle') {
+      sessionStorage.removeItem(OCR_STORAGE_KEY);
+    }
+  }, [ocrStatus, ocrQuestions, questionFigures, ocrProgress, pagePositions, thptYear, thptCode]);
+
+  // Restore OCR results from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(OCR_STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.ocrQuestions?.length > 0 && data.ocrStatus === 'done') {
+          setOcrQuestions(data.ocrQuestions);
+          setOcrStatus('done');
+          setOcrProgress(data.ocrProgress || { current: 0, total: 22 });
+          setQuestionFigures(data.questionFigures || {});
+          setPagePositions(data.pagePositions || {});
+          setThptYear(data.thptYear || '2025');
+          setThptCode(data.thptCode || '');
+          setActiveTab('thpt');
+        }
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Warn before leaving page when OCR results are unsaved
+  useEffect(() => {
+    const shouldWarn = ocrStatus === 'extracting' || ocrStatus === 'done';
+    if (!shouldWarn) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [ocrStatus]);
+
   useEffect(() => {
     if (activeTab === 'history') {
       fetchHistory();
     }
   }, [activeTab]);
+
+  // Strip Vietnamese diacritics: "Cấu" → "Cau", "Câu" → "Cau", "Phần" → "Phan"
+  // Handles OCR typos where accents differ (ấ vs â, ầ vs â, etc.)
+  const stripDiacritics = (s: string) =>
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Helper: match a position label to a questionNumber
+  const labelToQuestionNumber = (label: string): number | null => {
+    const normalized = stripDiacritics(label.replace(/\s+/g, '').toLowerCase());
+    // "cau5" → 5, "phaniicau2" → 14, "phaniiicau1" → 17
+    let m = normalized.match(/^phaniiicau(\d+)$/);
+    if (m) return parseInt(m[1], 10) + 16;
+    m = normalized.match(/^phaniicau(\d+)$/);
+    if (m) return parseInt(m[1], 10) + 12;
+    m = normalized.match(/^cau(\d+)$/);
+    if (m) return parseInt(m[1], 10);
+    return null;
+  };
+
+  // Auto-crop figure/table regions once extraction is done
+  useEffect(() => {
+    if (ocrStatus !== 'done' || !ocrQuestions.length || !pageDataUrls.length) return;
+
+    for (const [pageStr, positions] of Object.entries(pagePositions)) {
+      const pageNum = parseInt(pageStr, 10);
+      const dataUrl = pageDataUrls[pageNum - 1];
+      if (!dataUrl || !positions.length) continue;
+
+      for (const pos of positions) {
+        const posType = pos.type || 'question';
+        if (posType === 'figure' || posType === 'table') {
+          const ownerLabel = pos.questionLabel || '';
+          let qNum = labelToQuestionNumber(ownerLabel);
+          if (qNum) {
+            // Fallback label "Câu 2" → qNum=2, but could be PHẦN II (14) or PHẦN III (18)
+            if (!ocrQuestions.some((qq) => qq.questionNumber === qNum)) {
+              const p2 = qNum + 12; // PHẦN II offset
+              const p3 = qNum + 16; // PHẦN III offset
+              if (ocrQuestions.some((qq) => qq.questionNumber === p2)) qNum = p2;
+              else if (ocrQuestions.some((qq) => qq.questionNumber === p3)) qNum = p3;
+            }
+            const finalQNum = qNum;
+            cropPageImage(dataUrl, pos.yStart, pos.yEnd, 0.02, pos.xStart ?? 0, pos.xEnd ?? 1).then((cropUrl) => {
+              setQuestionFigures((prev) => prev[finalQNum] ? prev : { ...prev, [finalQNum]: cropUrl });
+            });
+          }
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocrStatus]);
 
   const fetchHistory = async () => {
     setIsLoadingHistory(true);
@@ -219,7 +333,11 @@ export default function UploadClient({ user }: { user: AuthUser }) {
       }
       
       const data = await response.json();
-      setValidationData(data);
+      setValidationData({
+        ...data,
+        errorCount: data.errorCount ?? 0,
+        dupCount: data.dupCount ?? 0,
+      });
       setUploadProgress(100);
       setStep(4);
     } catch (error: unknown) {
@@ -270,6 +388,183 @@ export default function UploadClient({ user }: { user: AuthUser }) {
     }
   };
 
+  // --- THPT OCR handlers ---
+
+  const handleThptFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) setThptFiles(Array.from(files));
+  };
+
+  const handleThptExtract = async () => {
+    if (!thptFiles.length) return;
+    setOcrError('');
+    setOcrQuestions([]);
+    setOcrProgress({ current: 0, total: 22 });
+    setPageDataUrls([]);
+    setPagePositions({});
+    setQuestionFigures({});
+
+    try {
+      // 1. Convert PDFs to images (client-side)
+      setOcrStatus('converting');
+      const images: File[] = [];
+      for (const f of thptFiles) {
+        if (f.type === 'application/pdf') {
+          const pages = await pdfToImages(f);
+          images.push(...pages);
+        } else {
+          images.push(f);
+        }
+      }
+
+      // Store page images as data URLs for later cropping
+      const dataUrls = await Promise.all(
+        images.map(
+          (img) =>
+            new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.readAsDataURL(img);
+            }),
+        ),
+      );
+      setPageDataUrls(dataUrls);
+
+      // 2. Send to OCR API
+      setOcrStatus('extracting');
+      const formData = new FormData();
+      images.forEach((f) => formData.append('images', f));
+      formData.append('examYear', thptYear);
+      formData.append('examCode', thptCode);
+
+      const res = await fetch('/api/v1/admin/upload/ocr', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error('Không thể kết nối đến server OCR');
+      }
+
+      // 3. Parse SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6);
+          if (raw === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed.event === 'question') {
+              setOcrQuestions((prev) => [...prev, parsed.data]);
+              setOcrProgress(parsed.progress);
+            } else if (parsed.event === 'pagePositions') {
+              console.log('[OCR] pagePositions page', parsed.page, JSON.stringify(parsed.positions));
+              setPagePositions((prev) => ({ ...prev, [parsed.page]: parsed.positions }));
+            } else if (parsed.event === 'complete') {
+              setOcrStatus('done');
+            } else if (parsed.event === 'error') {
+              setOcrError(parsed.message);
+              setOcrStatus('error');
+            }
+          } catch {
+            // skip malformed SSE
+          }
+        }
+      }
+
+      // If stream ended without 'complete' event
+      setOcrStatus((prev) => (prev === 'extracting' ? 'done' : prev));
+    } catch (err) {
+      setOcrError(err instanceof Error ? err.message : 'Extraction failed');
+      setOcrStatus('error');
+    }
+  };
+
+  const updateOcrQuestion = (index: number, updates: Partial<ExtractedQuestion>) => {
+    setOcrQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, ...updates } : q)));
+  };
+
+  const allAnswersFilled = ocrQuestions.every((q) => {
+    if (q.format === 'MULTIPLE_CHOICE') return !!q.answer;
+    if (q.format === 'TRUE_FALSE')
+      return q.answerA !== undefined && q.answerB !== undefined && q.answerC !== undefined && q.answerD !== undefined;
+    if (q.format === 'SHORT_ANSWER') return !!q.correctAnswer;
+    return false;
+  });
+
+  const handleThptSave = async () => {
+    if (!allAnswersFilled) return;
+    setOcrStatus('saving');
+
+    try {
+      // Upload figure/table crops and attach imageUrl to questions
+      const questionsWithImages = await Promise.all(
+        ocrQuestions.map(async (q) => {
+          const figureDataUrl = questionFigures[q.questionNumber];
+          if (!figureDataUrl) return q;
+          try {
+            const blob = await (await fetch(figureDataUrl)).blob();
+            const file = new File([blob], `fig-q${q.questionNumber}.png`, { type: 'image/png' });
+            const fd = new FormData();
+            fd.append('file', file);
+            const uploadRes = await fetch('/api/v1/admin/upload/image', { method: 'POST', body: fd });
+            if (uploadRes.ok) {
+              const { url } = await uploadRes.json();
+              return { ...q, imageUrl: url };
+            }
+          } catch {
+            // Upload failed — save without image
+          }
+          return q;
+        }),
+      );
+
+      const res = await fetch('/api/v1/admin/upload/ocr/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questions: questionsWithImages,
+          examYear: thptYear,
+          examCode: thptCode,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Save failed');
+      }
+
+      setOcrStatus('saved');
+    } catch (err) {
+      setOcrError(err instanceof Error ? err.message : 'Save failed');
+      setOcrStatus('error');
+    }
+  };
+
+  const resetThptOcr = () => {
+    setOcrStatus('idle');
+    setOcrQuestions([]);
+    setOcrProgress({ current: 0, total: 22 });
+    setOcrError('');
+    setThptFiles([]);
+    setThptCode('');
+    setPageDataUrls([]);
+    setPagePositions({});
+    setQuestionFigures({});
+  };
+
   const resetWizard = () => {
     setStep(1);
     setSelectedFile(null);
@@ -297,8 +592,6 @@ export default function UploadClient({ user }: { user: AuthUser }) {
             {[
               { id: 'manual', label: 'Nhập tay', icon: PenLine },
               { id: 'excel', label: 'Excel / CSV', icon: FileSpreadsheet },
-              { id: 'theory', label: 'Lý thuyết PDF', icon: FileSearch },
-              { id: 'exam-set', label: 'Bộ đề thi', icon: Layers },
               { id: 'thpt', label: 'Đề THPT', icon: FileCheck },
               { id: 'history', label: 'Lịch sử', icon: History },
             ].map((tab) => (
@@ -363,28 +656,39 @@ export default function UploadClient({ user }: { user: AuthUser }) {
 
               {/* Step 1: Download Templates */}
               {step === 1 && (
-                <div className="grid grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {[
-                    { type: 'PRACTICE', title: 'Practice Question', desc: 'Câu hỏi ôn tập từng chủ đề', icon: '📚' },
-                    { type: 'EXAM_SET', title: 'Exam Set', desc: 'Bộ đề thi chuẩn 10-50 câu', icon: '📝' },
-                    { type: 'THPT_EXAM', title: 'THPT Question', desc: 'Đề thi THPT quốc gia chính thức', icon: '🏆' },
+                    {
+                      type: 'questions',
+                      title: 'Câu hỏi thông thường',
+                      desc: 'Ôn luyện theo chủ đề hoặc bộ đề thi thử (PRACTICE / EXAM_SET). Hỗ trợ MC, Đúng/Sai và Trả lời ngắn trong 1 file.',
+                      icon: '📚',
+                      filename: 'template_questions.xlsx',
+                    },
+                    {
+                      type: 'thpt',
+                      title: 'Đề thi THPT Quốc Gia',
+                      desc: '3 sheets riêng biệt: Phần I (12 MC) · Phần II (4 Đúng/Sai) · Phần III (6 Trả lời ngắn). Đúng cấu trúc đề thật 2025.',
+                      icon: '🏆',
+                      filename: 'template_thpt.xlsx',
+                    },
                   ].map((tpl) => (
                     <div key={tpl.type} className="bg-white p-8 rounded-2xl border border-[#e2e8f0] flex flex-col items-center text-center group hover:border-[#059669]/30 hover:shadow-xl transition-all">
                       <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">{tpl.icon}</div>
-                      <h3 className="text-[#0f172a] text-[15px] font-bold mb-1">Template {tpl.type}</h3>
-                      <p className="text-[#64748b] text-[12px] mb-6">{tpl.desc}</p>
-                      <a 
-                        href="/templates/questions_template.xlsx" 
-                        download="questions_template.xlsx"
+                      <h3 className="text-[#0f172a] text-[15px] font-bold mb-2">{tpl.title}</h3>
+                      <p className="text-[#64748b] text-[12px] mb-6 leading-relaxed">{tpl.desc}</p>
+                      <a
+                        href={`/api/v1/admin/upload/excel/template?type=${tpl.type}`}
+                        download={tpl.filename}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-cyan-600 text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity"
                       >
-                        📥 Tải template Excel
+                        <Download size={15} /> Tải template Excel
                       </a>
                     </div>
                   ))}
 
                   {/* Template table structure */}
-                  <div className="col-span-3 bg-white p-8 rounded-2xl border border-[#e2e8f0]">
+                  <div className="col-span-2 bg-white p-8 rounded-2xl border border-[#e2e8f0]">
                     <h4 className="text-[#0f172a] text-[14px] font-bold mb-6 flex items-center gap-2">
                       <Info size={16} className="text-[#059669]" />
                       Cấu trúc cột bắt buộc
@@ -519,11 +823,11 @@ export default function UploadClient({ user }: { user: AuthUser }) {
                     </div>
                     <div className="bg-white p-5 rounded-2xl border border-[#fee2e2]">
                       <p className="text-[#ef4444] text-[10px] uppercase font-bold mb-1">Lỗi dữ liệu</p>
-                      <p className="text-[#ef4444] text-[24px] font-black">{validationData.error}</p>
+                      <p className="text-[#ef4444] text-[24px] font-black">{validationData.errorCount}</p>
                     </div>
                     <div className="bg-white p-5 rounded-2xl border border-[#fef3c7]">
                       <p className="text-[#f59e0b] text-[10px] uppercase font-bold mb-1">Trùng lặp</p>
-                      <p className="text-[#f59e0b] text-[24px] font-black">{validationData.duplicate}</p>
+                      <p className="text-[#f59e0b] text-[24px] font-black">{validationData.dupCount}</p>
                     </div>
                   </div>
 
@@ -552,7 +856,9 @@ export default function UploadClient({ user }: { user: AuthUser }) {
                               row.status === 'DUP' ? 'border-l-[#f59e0b]' : 'border-l-[#6366f1]'
                             }`}>
                               <td className="px-6 py-4 text-center text-[#94a3b8] font-mono">{row.id}</td>
-                              <td className="px-6 py-4 font-medium text-[#0f172a] max-w-md truncate">{row.content}</td>
+                              <td className="px-6 py-4 font-medium text-[#0f172a] max-w-md">
+                                <MathRenderer content={row.content} className="line-clamp-2 text-[12px]" />
+                              </td>
                               <td className="px-6 py-4 text-center">
                                 <Badge variant={
                                   row.status === 'OK' ? 'green' : 
@@ -577,7 +883,7 @@ export default function UploadClient({ user }: { user: AuthUser }) {
 
                   <div className="flex justify-between items-center">
                     <p className="text-[11px] text-[#94a3b8] italic">
-                      * Các hàng có lỗi sẽ bị bỏ qua khi click "Lưu vào hệ thống".
+                      * Các hàng lỗi (ERROR) và trùng lặp (DUP) sẽ bị bỏ qua khi lưu.
                     </p>
                     <div className="flex gap-3">
                       <button onClick={() => setStep(2)} className="px-6 py-2.5 rounded-xl border border-[#e2e8f0] text-[#64748b] font-bold text-[13px] hover:bg-slate-50">Sửa lại</button>
@@ -594,141 +900,340 @@ export default function UploadClient({ user }: { user: AuthUser }) {
 
               {/* Step 5: Final Result */}
               {step === 5 && validationData && (
-                <SuccessHero 
-                  stats={{ total: validationData.total, success: validationData.valid, warning: validationData.duplicate }} 
+                <SuccessHero
+                  stats={{ total: validationData.total, success: validationData.valid, warning: validationData.dupCount }}
                   onReset={resetWizard}
                 />
               )}
             </div>
           )}
 
-          {activeTab === 'theory' && (
-             <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white p-8 rounded-2xl border border-[#e2e8f0]">
-                   <h2 className="text-[#0f172a] text-[18px] font-bold mb-6">Upload Lý thuyết thông minh (RAG)</h2>
-                   <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                         <div>
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Chủ đề</label>
-                            <select className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none">
-                               {TOPICS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                            </select>
-                         </div>
-                         <div>
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Tiêu đề tài liệu</label>
-                            <input type="text" placeholder="VD: Công thức tính nhanh đạo hàm" className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none" />
-                         </div>
-                      </div>
-
-                      <div className="border-2 border-dashed border-[#d1fae5] rounded-3xl p-12 flex flex-col items-center justify-center hover:bg-[#f0fdf9] hover:border-[#059669] transition-all cursor-pointer">
-                         <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-red-500 shadow-sm mb-4">
-                            <FileText size={32} />
-                         </div>
-                         <p className="text-[#0f172a] font-bold mb-1">Kéo thả file PDF vào đây</p>
-                         <p className="text-[#94a3b8] text-[11px]">Hệ thống sẽ tự động tách nhỏ (chunking) và vector hóa để AI học.</p>
-                      </div>
-
-                      <div className="bg-[#f0fdf9] border-l-4 border-[#059669] p-4 rounded-r-xl">
-                         <div className="flex gap-3">
-                            <Info className="text-[#059669] flex-shrink-0" size={18} />
-                            <p className="text-[#065f46] text-[12px] leading-relaxed">
-                               <b>Ghi chú RAG:</b> Nội dung PDF sẽ được index vào cơ sở dữ liệu vector. AI MathBot sẽ ưu tiên sử dụng thông tin từ file này để trả lời câu hỏi của học sinh.
-                            </p>
-                         </div>
-                      </div>
-
-                      <button className="w-full py-3 rounded-xl bg-gradient-to-r from-[#059669] to-[#0891b2] text-white font-bold text-[14px]">
-                         Xử lý lý thuyết & Cập nhật AI
-                      </button>
-                   </div>
-                </div>
-             </div>
-          )}
-
-          {activeTab === 'exam-set' && (
-             <div className="max-w-3xl mx-auto">
-                <div className="bg-white p-8 rounded-2xl border border-[#e2e8f0]">
-                   <h2 className="text-[#0f172a] text-[18px] font-bold mb-6">Tạo bộ đề thi mới</h2>
-                   <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                         <div className="col-span-2">
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Tên bộ đề</label>
-                            <input type="text" placeholder="VD: Đề thi thử học kỳ 2 - Trường chuyên ABC" className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none" />
-                         </div>
-                         <div>
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Chủ đề chính</label>
-                            <select className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none">
-                               <option value="ALL">Tổng hợp</option>
-                               {TOPICS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                            </select>
-                         </div>
-                         <div>
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Phương thức upload</label>
-                            <select className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none">
-                               <option value="excel">Excel Template</option>
-                               <option value="pdf">File PDF + Nhập đáp án</option>
-                            </select>
-                         </div>
-                      </div>
-
-                      <div className="border-2 border-dashed border-[#d1fae5] rounded-3xl p-12 flex flex-col items-center justify-center hover:bg-[#f0fdf9] hover:border-[#059669] transition-all cursor-pointer">
-                         <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-indigo-500 shadow-sm mb-4">
-                            <Layers size={32} />
-                         </div>
-                         <p className="text-[#0f172a] font-bold mb-1">Tải file đề thi lên</p>
-                      </div>
-
-                      <button className="w-full py-3 rounded-xl bg-[#0f172a] text-white font-bold text-[14px]">
-                         Tạo bộ đề & Kiểm tra
-                      </button>
-                   </div>
-                </div>
-             </div>
-          )}
-
           {activeTab === 'thpt' && (
-             <div className="max-w-3xl mx-auto">
-                <div className="bg-white p-8 rounded-2xl border border-[#e2e8f0]">
-                   <h2 className="text-[#0f172a] text-[18px] font-bold mb-6">Import Đề THPT Quốc Gia</h2>
-                   <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                         <div>
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Năm thi</label>
-                            <select className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none">
-                               <option>2024</option>
-                               <option>2023</option>
-                               <option>2022</option>
-                               <option>2021</option>
-                            </select>
-                         </div>
-                         <div>
-                            <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Mã đề</label>
-                            <input type="text" placeholder="VD: 101, 102..." className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none" />
-                         </div>
-                      </div>
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Header */}
+              <div className="bg-white p-6 rounded-2xl border border-[#e2e8f0]">
+                <h2 className="text-[#0f172a] text-[18px] font-bold mb-1">Import Đề THPT Quốc Gia (OCR + AI)</h2>
+                <p className="text-[#64748b] text-[12px]">Upload ảnh hoặc PDF đề thi → AI tự động nhận diện và trích xuất câu hỏi</p>
+              </div>
 
-                      <div className="border-2 border-dashed border-[#d1fae5] rounded-3xl p-12 flex flex-col items-center justify-center hover:bg-[#f0fdf9] hover:border-[#059669] transition-all cursor-pointer">
-                         <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-amber-500 shadow-sm mb-4">
-                            <FileCheck size={32} />
-                         </div>
-                         <p className="text-[#0f172a] font-bold mb-1">Upload Đề & Đáp án</p>
-                      </div>
+              {/* Step 1: Upload config (idle) */}
+              {ocrStatus === 'idle' && (
+                <div className="bg-white p-8 rounded-2xl border border-[#e2e8f0] animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="grid grid-cols-2 gap-6 mb-6">
+                    <div>
+                      <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Năm thi</label>
+                      <select
+                        value={thptYear}
+                        onChange={(e) => setThptYear(e.target.value)}
+                        className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-[#059669]"
+                      >
+                        {[2025, 2024, 2023, 2022, 2021].map((y) => (
+                          <option key={y} value={String(y)}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[#0f172a] text-[12px] font-bold mb-2">Mã đề</label>
+                      <input
+                        type="text"
+                        value={thptCode}
+                        onChange={(e) => setThptCode(e.target.value)}
+                        placeholder="VD: 101, 102..."
+                        className="w-full bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-4 py-2.5 text-[13px] outline-none focus:border-[#059669]"
+                      />
+                    </div>
+                  </div>
 
-                      <div className="bg-[#fffbeb] border-l-4 border-[#f59e0b] p-4 rounded-r-xl">
-                         <div className="flex gap-3">
-                            <AlertTriangle className="text-[#f59e0b] flex-shrink-0" size={18} />
-                            <p className="text-[#92400e] text-[12px] leading-relaxed">
-                               <b>Lưu ý quan trọng:</b> Hệ thống chỉ hỗ trợ tách tự động phần trắc nghiệm. Vui lòng đảm bảo file upload đúng định dạng đề minh họa/đề thật của Bộ GD&ĐT.
-                            </p>
-                         </div>
-                      </div>
+                  <div
+                    onClick={() => thptFileRef.current?.click()}
+                    className={`border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center transition-all cursor-pointer ${
+                      thptFiles.length > 0 ? 'border-[#059669] bg-[#f0fdf9]' : 'border-[#d1fae5] hover:border-[#059669] hover:bg-[#f0fdf9]'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      ref={thptFileRef}
+                      className="hidden"
+                      accept=".jpg,.jpeg,.png,.webp,.pdf"
+                      multiple
+                      onChange={handleThptFileSelect}
+                    />
+                    <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-amber-500 shadow-sm mb-4">
+                      {thptFiles.length > 0 ? <FileCheck size={32} /> : <Upload size={32} />}
+                    </div>
+                    <p className="text-[#0f172a] font-bold mb-1">
+                      {thptFiles.length > 0
+                        ? `${thptFiles.length} file: ${thptFiles.map((f) => f.name).join(', ')}`
+                        : 'Click để chọn ảnh hoặc PDF đề thi'}
+                    </p>
+                    <p className="text-[#94a3b8] text-[11px]">Hỗ trợ .jpg, .png, .pdf (nhiều file/trang)</p>
+                  </div>
 
-                      <button className="w-full py-3 rounded-xl bg-[#059669] text-white font-bold text-[14px]">
-                         Bắt đầu Import
-                      </button>
-                   </div>
+                  <div className="mt-4 bg-[#f0fdf9] border-l-4 border-[#059669] p-4 rounded-r-xl">
+                    <div className="flex gap-3">
+                      <Info className="text-[#059669] flex-shrink-0" size={18} />
+                      <p className="text-[#065f46] text-[12px] leading-relaxed">
+                        <b>Cách hoạt động:</b> AI GPT-4o Vision sẽ đọc ảnh đề thi, nhận diện công thức toán (LaTeX), và trích xuất 22 câu hỏi (12 TN + 4 ĐS + 6 TL). Bạn cần nhập đáp án đúng cho từng câu trước khi lưu.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleThptExtract}
+                    disabled={!thptFiles.length}
+                    className="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-[#059669] to-[#0891b2] text-white font-bold text-[14px] shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Bắt đầu phân tích bằng AI
+                  </button>
                 </div>
-             </div>
+              )}
+
+              {/* Converting PDF */}
+              {ocrStatus === 'converting' && (
+                <div className="bg-white p-12 rounded-2xl border border-[#e2e8f0] flex flex-col items-center animate-in fade-in zoom-in duration-500">
+                  <Loader2 size={40} className="animate-spin text-[#059669] mb-4" />
+                  <h3 className="text-[#0f172a] text-[18px] font-bold mb-2">Đang chuyển PDF thành ảnh...</h3>
+                  <p className="text-[#64748b] text-[14px]">Vui lòng chờ trong giây lát.</p>
+                </div>
+              )}
+
+              {/* Extracting / Done — streaming questions */}
+              {(ocrStatus === 'extracting' || ocrStatus === 'done') && (
+                <div className="space-y-4 animate-in fade-in duration-500">
+                  {/* Progress bar */}
+                  <div className="bg-white p-5 rounded-2xl border border-[#e2e8f0]">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-[12px] font-bold text-[#0f172a]">
+                        {ocrStatus === 'extracting' ? 'Đang trích xuất...' : 'Trích xuất hoàn tất'}
+                      </span>
+                      <span className="text-[12px] font-bold text-[#059669]">
+                        {ocrProgress.current}/{ocrProgress.total} câu
+                      </span>
+                    </div>
+                    <div className="h-2 bg-[#f1f5f9] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#059669] to-[#0891b2] rounded-full transition-all duration-500"
+                        style={{ width: `${(ocrProgress.current / ocrProgress.total) * 100}%` }}
+                      />
+                    </div>
+                    {ocrStatus === 'done' && ocrProgress.current < 22 && (
+                      <p className="text-[11px] text-amber-600 mt-2">
+                        <AlertTriangle size={12} className="inline mr-1" />
+                        Chỉ trích xuất được {ocrProgress.current}/22 câu. Vui lòng kiểm tra lại.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Question cards */}
+                  {ocrQuestions.map((q, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white p-6 rounded-2xl border border-[#e2e8f0] animate-in fade-in slide-in-from-bottom-2 duration-300"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-[12px] font-black text-slate-400">Câu {q.questionNumber}</span>
+                        <Badge variant={q.format === 'MULTIPLE_CHOICE' ? 'blue' : q.format === 'TRUE_FALSE' ? 'purple' : 'green'}>
+                          {q.format === 'MULTIPLE_CHOICE' ? 'Trắc nghiệm' : q.format === 'TRUE_FALSE' ? 'Đúng/Sai' : 'Trả lời ngắn'}
+                        </Badge>
+                        <div className="ml-auto flex gap-2">
+                          <select
+                            value={q.topic}
+                            onChange={(e) => updateOcrQuestion(idx, { topic: e.target.value })}
+                            className="text-[11px] bg-[#f8fafc] border border-[#e2e8f0] rounded-lg px-2 py-1 outline-none"
+                          >
+                            {TOPICS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                          </select>
+                          <select
+                            value={q.difficulty}
+                            onChange={(e) => updateOcrQuestion(idx, { difficulty: e.target.value })}
+                            className="text-[11px] bg-[#f8fafc] border border-[#e2e8f0] rounded-lg px-2 py-1 outline-none"
+                          >
+                            {DIFFICULTIES.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Content + inline figure: split at [Hình:]/[Bảng:] marker */}
+                      {(() => {
+                        // Insert line breaks before event/variable definitions: A:, B:, etc.
+                        const formatContent = (text: string) =>
+                          text.replace(/([;:])\s+([A-Z]:\s*[""])/g, '$1\n$2');
+                        const hasFigure = !!questionFigures[q.questionNumber];
+                        if (!hasFigure) {
+                          return (
+                            <div className="mb-4 text-[13px] text-[#0f172a] leading-relaxed whitespace-pre-line">
+                              <MathRenderer content={formatContent(q.content)} />
+                            </div>
+                          );
+                        }
+                        // Try [Bảng:]/[Hình:] marker first, fallback to inline markdown table
+                        const markerRegex = /\s*\[(?:Hình|Bảng):[\s\S]*?\](?=[.,;]\s|\s*$)\s*/;
+                        const mdTableRegex = /(?:\s*\|(?:[^|]*\|){2,}\s*){2,}/;
+                        const splitRegex = markerRegex.test(q.content) ? markerRegex : mdTableRegex;
+                        const parts = q.content.split(splitRegex);
+                        const before = (parts[0] || '').replace(/\.+\s*$/, '').trim();
+                        const after = (parts[1] || '').replace(/^[:.]\s*/, '').trim();
+                        return (
+                          <>
+                            {before && (
+                              <div className="mb-3 text-[13px] text-[#0f172a] leading-relaxed whitespace-pre-line">
+                                <MathRenderer content={formatContent(before)} />
+                              </div>
+                            )}
+                            <div className="mb-3 flex justify-center">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={questionFigures[q.questionNumber]}
+                                alt={`Hình câu ${q.questionNumber}`}
+                                className="max-h-48 w-auto rounded-lg border border-[#e2e8f0] cursor-zoom-in hover:opacity-90 transition-opacity"
+                                onClick={() => window.open(questionFigures[q.questionNumber], '_blank')}
+                              />
+                            </div>
+                            {after && (
+                              <div className="mb-4 text-[13px] text-[#0f172a] leading-relaxed whitespace-pre-line">
+                                <MathRenderer content={formatContent(after)} />
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+
+                      {/* MC: options + answer */}
+                      {q.format === 'MULTIPLE_CHOICE' && q.options && (
+                        <div className="space-y-2">
+                          {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                            <div key={opt} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] ${
+                              q.answer === opt ? 'bg-emerald-50 border border-emerald-200' : 'bg-[#f8fafc]'
+                            }`}>
+                              <button
+                                onClick={() => updateOcrQuestion(idx, { answer: opt })}
+                                className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center border-2 transition-all ${
+                                  q.answer === opt
+                                    ? 'bg-[#059669] text-white border-[#059669]'
+                                    : 'border-[#d1d5db] text-[#6b7280] hover:border-[#059669]'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                              <MathRenderer content={q.options![opt]} className="flex-1" />
+                            </div>
+                          ))}
+                          {!q.answer && (
+                            <p className="text-[11px] text-red-500 font-medium">* Vui lòng chọn đáp án đúng</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* TF: statements + toggles */}
+                      {q.format === 'TRUE_FALSE' && (
+                        <div className="space-y-2">
+                          {(['A', 'B', 'C', 'D'] as const).map((letter) => {
+                            const stKey = `statement${letter}` as keyof ExtractedQuestion;
+                            const ansKey = `answer${letter}` as keyof ExtractedQuestion;
+                            const ansVal = q[ansKey] as boolean | undefined;
+                            return (
+                              <div key={letter} className="flex items-center gap-3 px-3 py-2 bg-[#f8fafc] rounded-lg text-[12px]">
+                                <span className="text-[10px] font-bold text-slate-400 w-4">{letter.toLowerCase()})</span>
+                                <MathRenderer content={String(q[stKey] || '')} className="flex-1" />
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => updateOcrQuestion(idx, { [ansKey]: true } as Partial<ExtractedQuestion>)}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                      ansVal === true ? 'bg-emerald-500 text-white' : 'bg-white border border-[#d1d5db] text-[#6b7280] hover:border-emerald-400'
+                                    }`}
+                                  >Đ</button>
+                                  <button
+                                    onClick={() => updateOcrQuestion(idx, { [ansKey]: false } as Partial<ExtractedQuestion>)}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                      ansVal === false ? 'bg-red-500 text-white' : 'bg-white border border-[#d1d5db] text-[#6b7280] hover:border-red-400'
+                                    }`}
+                                  >S</button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {(q.answerA === undefined || q.answerB === undefined || q.answerC === undefined || q.answerD === undefined) && (
+                            <p className="text-[11px] text-red-500 font-medium">* Vui lòng chọn Đ/S cho tất cả mệnh đề</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* SA: answer input */}
+                      {q.format === 'SHORT_ANSWER' && (
+                        <div>
+                          <label className="block text-[11px] font-bold text-[#0f172a] mb-1">Đáp án đúng:</label>
+                          <input
+                            type="text"
+                            value={q.correctAnswer || ''}
+                            onChange={(e) => updateOcrQuestion(idx, { correctAnswer: e.target.value })}
+                            placeholder="VD: 4, 2+a, 120..."
+                            className={`w-full bg-[#f8fafc] border rounded-lg px-3 py-2 text-[13px] outline-none transition-all ${
+                              !q.correctAnswer ? 'border-red-300 focus:border-red-500' : 'border-[#e2e8f0] focus:border-[#059669]'
+                            }`}
+                          />
+                          {!q.correctAnswer && (
+                            <p className="text-[11px] text-red-500 font-medium mt-1">* Vui lòng nhập đáp án</p>
+                          )}
+                        </div>
+                      )}
+
+                    </div>
+                  ))}
+
+                  {/* Action buttons */}
+                  {ocrStatus === 'done' && ocrQuestions.length > 0 && (
+                    <div className="flex justify-between items-center">
+                      <button
+                        onClick={resetThptOcr}
+                        className="px-6 py-2.5 rounded-xl border border-[#e2e8f0] text-[#64748b] font-bold text-[13px] hover:bg-slate-50"
+                      >
+                        Hủy & Thử lại
+                      </button>
+                      <button
+                        onClick={handleThptSave}
+                        disabled={!allAnswersFilled}
+                        className="px-8 py-2.5 rounded-xl bg-[#0f172a] text-white font-bold text-[13px] shadow-lg shadow-slate-900/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {allAnswersFilled
+                          ? `Lưu ${ocrQuestions.length} câu hỏi vào kho đề`
+                          : 'Vui lòng nhập đáp án cho tất cả câu'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Saving spinner */}
+              {ocrStatus === 'saving' && (
+                <div className="bg-white p-12 rounded-2xl border border-[#e2e8f0] flex flex-col items-center animate-in fade-in zoom-in duration-500">
+                  <Loader2 size={40} className="animate-spin text-[#059669] mb-4" />
+                  <h3 className="text-[#0f172a] text-[18px] font-bold">Đang lưu vào kho đề...</h3>
+                </div>
+              )}
+
+              {/* Saved success */}
+              {ocrStatus === 'saved' && (
+                <SuccessHero
+                  stats={{ total: ocrQuestions.length, success: ocrQuestions.length }}
+                  onReset={resetThptOcr}
+                />
+              )}
+
+              {/* Error */}
+              {ocrStatus === 'error' && (
+                <div className="bg-white p-8 rounded-2xl border border-red-200 text-center animate-in fade-in duration-500">
+                  <AlertCircle size={40} className="text-red-500 mx-auto mb-4" />
+                  <h3 className="text-[#0f172a] text-[18px] font-bold mb-2">Đã xảy ra lỗi</h3>
+                  <p className="text-[#64748b] text-[13px] mb-6">{ocrError}</p>
+                  <button
+                    onClick={resetThptOcr}
+                    className="px-8 py-2.5 rounded-xl bg-[#0f172a] text-white font-bold text-[13px]"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {activeTab === 'history' && (

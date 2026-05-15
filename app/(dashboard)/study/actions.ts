@@ -16,3 +16,24 @@ export async function getKnowledgeChunks(topicKey: string) {
     return [];
   }
 }
+
+export async function getStudyContent(topicKey: string, subsection?: string) {
+  try {
+    if (subsection) {
+      const items = await prisma.$queryRawUnsafe<any[]>(
+        `SELECT id, topic, subsection, title, content, "sortOrder" FROM study_contents WHERE topic = $1::text AND subsection = $2::text ORDER BY "sortOrder" ASC`,
+        topicKey,
+        subsection
+      );
+      return items;
+    }
+    const items = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, topic, subsection, title, content, "sortOrder" FROM study_contents WHERE topic = $1::text ORDER BY "sortOrder" ASC`,
+      topicKey
+    );
+    return items;
+  } catch (error) {
+    console.error('Failed to fetch study content:', error);
+    return [];
+  }
+}

@@ -44,14 +44,14 @@ export const TOPIC_CONFIG = [
 
 export const TOPIC_SUBSECTIONS: Record<Topic, string[]> = {
   DERIVATIVES: ['Định nghĩa', 'Quy tắc tính', 'Ứng dụng', 'Bài tập mẫu'],
-  INTEGRALS: ['Nguyên hàm', 'Tích phân', 'Ứng dụng', 'Phương pháp tính'],
-  FUNCTIONS: ['Khảo sát', 'Cực trị', 'Tiệm cận', 'Tương giao'],
-  PROBABILITY: ['Tổ hợp', 'Xác suất', 'Biến ngẫu nhiên'],
-  COMPLEX_NUMBERS: ['Định nghĩa', 'Phép toán', 'Biểu diễn', 'Phương trình'],
-  EXPONENTIAL_LOG: ['Hàm mũ', 'Logarit', 'Phương trình'],
-  SOLID_GEOMETRY: ['Quan hệ song song', 'Quan hệ vuông góc'],
-  SEQUENCES: ['Cấp số cộng', 'Cấp số nhân', 'Quy nạp'],
+  INTEGRALS: ['Nguyên hàm', 'Tích phân', 'Ứng dụng', 'Phương pháp tính', 'Bài tập'],
+  FUNCTIONS: ['Khảo sát', 'Cực trị', 'Tiệm cận', 'Tương giao', 'Bài tập'],
+  PROBABILITY: ['Tổ hợp', 'Xác suất', 'Biến ngẫu nhiên', 'Bài tập'],
+  COMPLEX_NUMBERS: ['Định nghĩa', 'Phép toán', 'Biểu diễn', 'Phương trình', 'Bài tập'],
+  EXPONENTIAL_LOG: ['Hàm mũ', 'Logarit', 'Phương trình', 'Bài tập'],
+  SOLID_GEOMETRY: ['Quan hệ song song', 'Quan hệ vuông góc', 'Bài tập'],
+  SEQUENCES: ['Cấp số cộng', 'Cấp số nhân', 'Quy nạp', 'Bài tập'],
   LIMITS: ['Dãy số', 'Hàm số', 'Liên tục', 'Bài tập'],
-  ANALYTIC_GEOMETRY: ['Tọa độ Oxy', 'Oxyz', 'Mặt cầu'],
-  VOLUME: ['Khối đa diện', 'Khối tròn xoay'],
+  ANALYTIC_GEOMETRY: ['Tọa độ Oxy', 'Oxyz', 'Mặt cầu', 'Bài tập'],
+  VOLUME: ['Khối đa diện', 'Khối tròn xoay', 'Bài tập'],
 };

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
-import MathRenderer from '@/components/exam/MathRenderer';
-import { getKnowledgeChunks } from './actions';
+import StudyMathRenderer from '@/components/study/StudyMathRenderer';
+import { getStudyContent } from './actions';
 import StudyChatPanel from '@/components/study/StudyChatPanel';
 import { Topic } from '@prisma/client';
 
@@ -25,14 +25,18 @@ import { Suspense } from 'react';
 function StudyContent() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initTopic = searchParams.get('topic') || TOPIC_CONFIG[0].key;
   const initSub = parseInt(searchParams.get('sub') || '0', 10);
   
   const [selectedTopic, setSelectedTopic] = useState(initTopic);
   const [activeSubSectionIndex, setActiveSubSectionIndex] = useState(initSub);
   const [topicStats, setTopicStats] = useState<any[]>([]);
+  const [topicProgress, setTopicProgress] = useState<Record<string, number>>({});
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [chunks, setChunks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -59,6 +63,48 @@ function StudyContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Fetch study progress
+  const fetchProgress = () => {
+    fetch('/api/v1/study/progress')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const map: Record<string, number> = {};
+          data.forEach((p: any) => { map[p.topic] = p.percent; });
+          setTopicProgress(map);
+        }
+      })
+      .catch(err => console.error('Progress fetch failed:', err));
+  };
+
+  // Check bookmark status when topic/subsection changes
+  useEffect(() => {
+    fetch('/api/v1/study/bookmarks')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const found = data.some((b: any) => b.topic === selectedTopic && b.subsection === activeSubSectionLabel);
+          setIsBookmarked(found);
+        }
+      })
+      .catch(() => {});
+  }, [selectedTopic, activeSubSectionLabel]);
+
+  const toggleBookmark = () => {
+    fetch('/api/v1/study/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: selectedTopic, subsection: activeSubSectionLabel }),
+    })
+      .then(res => res.json())
+      .then(data => setIsBookmarked(data.bookmarked))
+      .catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchProgress();
+  }, []);
+
   useEffect(() => {
     fetch('/api/v1/analytics/overview')
       .then(async res => {
@@ -77,36 +123,42 @@ function StudyContent() {
   }, [initTopic, initSub]);
 
   useEffect(() => {
-    async function loadChunks() {
+    async function loadContent() {
       setLoading(true);
       try {
-        const data = await getKnowledgeChunks(selectedTopic);
-        // Default: first section open
-        if (data && data.length > 0) {
-          setExpandedSections({ [data[0].id]: true });
-        } else {
-          setExpandedSections({});
-        }
+        const subsectionLabel = subSections[activeSubSectionIndex];
+        const data = await getStudyContent(selectedTopic, subsectionLabel);
+        setExpandedSections({});
         setChunks(data || []);
       } catch (err) {
-        console.error('Failed to load chunks:', err);
+        console.error('Failed to load study content:', err);
         setChunks([]);
       } finally {
         setLoading(false);
       }
     }
-    loadChunks();
-  }, [selectedTopic]);
+    loadContent();
+  }, [selectedTopic, activeSubSectionIndex]);
 
   const toggleSection = (id: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+    const willExpand = !expandedSections[id];
+    setExpandedSections(prev => ({ ...prev, [id]: willExpand }));
+
+    // Mark as read when expanding for the first time
+    if (willExpand && !readIds.has(id)) {
+      setReadIds(prev => new Set(prev).add(id));
+      fetch('/api/v1/study/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studyContentId: id }),
+      }).then(() => {
+        fetchProgress();
+        window.dispatchEvent(new Event('study-progress-updated'));
+      }).catch(console.error);
+    }
   };
 
-  const currentStat = topicStats.find(s => s.topic === selectedTopic);
-  const currentAccuracy = currentStat ? Math.round(currentStat.accuracy) : 0;
+  const currentAccuracy = topicProgress[selectedTopic] || 0;
 
   const user = session?.user as { name?: string | null, email?: string | null };
   const initials = user?.name
@@ -141,8 +193,18 @@ function StudyContent() {
           </div>
           
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl hover:bg-rose-100 transition-colors">
-              📌 Lưu
+            <button
+              onClick={toggleBookmark}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl transition-colors ${
+                isBookmarked
+                  ? 'bg-rose-500 text-white hover:bg-rose-600'
+                  : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+              }`}
+            >
+              <svg className="w-4 h-4" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              {isBookmarked ? 'Đã lưu' : 'Lưu'}
             </button>
             <Link 
               href={`/exam?topic=${selectedTopic}`}
@@ -159,7 +221,10 @@ function StudyContent() {
           {subSections.map((sub, idx) => (
             <button
               key={idx}
-              onClick={() => setActiveSubSectionIndex(idx)}
+              onClick={() => {
+                setActiveSubSectionIndex(idx);
+                router.replace(`/study?topic=${selectedTopic}&sub=${idx}`, { scroll: false });
+              }}
               className={`px-4 py-1.5 rounded-full whitespace-nowrap text-xs font-bold border transition-all
                 ${activeSubSectionIndex === idx 
                   ? 'bg-[#059669] text-white border-[#059669] shadow-md shadow-[#059669]/20' 
@@ -207,7 +272,7 @@ function StudyContent() {
                         `}>
                           {idx + 1}
                         </div>
-                        <h3 className="text-lg font-black text-slate-800">{chunk.source || `Phần ${idx + 1}`}</h3>
+                        <h3 className="text-lg font-black text-slate-800">{chunk.title || chunk.source || `Phần ${idx + 1}`}</h3>
                       </div>
                       <svg 
                         className={`w-5 h-5 text-slate-300 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-slate-500' : ''}`} 
@@ -224,7 +289,7 @@ function StudyContent() {
                     >
                       <div className="px-6 pb-6 pt-0 border-t border-slate-50">
                         <div className="prose prose-slate max-w-none text-slate-700 font-medium py-4">
-                          <MathRenderer content={chunk.content} />
+                          <StudyMathRenderer content={chunk.content} />
                         </div>
                         
                         {/* Action buttons inside card */}

@@ -17,6 +17,7 @@ export interface QuestionData {
   statementD?: string;
   topic: string;
   difficulty: string;
+  imageUrl?: string | null;
 }
 
 interface QuestionCardProps {
@@ -69,6 +70,16 @@ export default function QuestionCard({
         <div className="my-4 pl-4 border-l-4 border-[#059669] bg-white py-4 rounded-r-xl shadow-sm">
           <MathRenderer content={question.content.match(/\$\$[\s\S]*?\$\$/g)?.join(' ') || ''} />
         </div>
+      )}
+
+      {/* Question image (figure/table from exam) */}
+      {question.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={question.imageUrl}
+          alt={`Hình minh họa câu ${questionNumber}`}
+          className="w-full max-w-lg mx-auto rounded-xl border border-gray-100 shadow-sm my-4"
+        />
       )}
 
       {/* Render by Format */}

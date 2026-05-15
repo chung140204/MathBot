@@ -6,6 +6,7 @@ import ExamSidebar from '@/components/exam/ExamSidebar';
 import ExamQuestion from '@/components/exam/ExamQuestion';
 import ExamSetupModal from '@/components/exam/ExamSetupModal';
 import { QuestionData } from '@/components/exam/QuestionCard';
+import { TOPICS } from '@/lib/constants/topics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,11 +19,12 @@ interface ExamState {
   isSubmitting: boolean;
   isFinished: boolean;
   examSessionId: string;
+  examMode: string;
 }
 
 type ExamAction =
   | { type: 'HYDRATE'; state: Partial<ExamState> }
-  | { type: 'INIT'; questions: QuestionData[]; examSessionId: string; timeRemaining: number }
+  | { type: 'INIT'; questions: QuestionData[]; examSessionId: string; timeRemaining: number; examMode: string }
   | { type: 'SELECT_ANSWER'; questionId: string; answer: string }
   | { type: 'SKIP_QUESTION'; questionId: string }
   | { type: 'NAVIGATE'; index: number }
@@ -42,6 +44,7 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
         questions: action.questions,
         examSessionId: action.examSessionId,
         timeRemaining: action.timeRemaining,
+        examMode: action.examMode,
         answers: {},
         skipped: new Set<string>(),
         currentIndex: 0,
@@ -77,10 +80,6 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const MINUTES_PER_QUESTION = 1.5;
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ExamPage() {
@@ -99,6 +98,7 @@ export default function ExamPage() {
     isSubmitting: false,
     isFinished: false,
     examSessionId: '',
+    examMode: 'standard',
   });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -167,7 +167,7 @@ export default function ExamPage() {
 
   // ─── Generate exam from API ────────────────────────────────────────────────
 
-  const handleStartExam = useCallback(async (config: { topics: string[]; totalQuestions: number }) => {
+  const handleStartExam = useCallback(async (requestBody: Record<string, unknown>) => {
     setIsGenerating(true);
     setSetupError(null);
 
@@ -175,10 +175,7 @@ export default function ExamPage() {
       const res = await fetch('/api/v1/exam/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topics: config.topics,
-          totalQuestions: config.totalQuestions,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await res.json();
@@ -188,13 +185,12 @@ export default function ExamPage() {
         return;
       }
 
-      const timeRemaining = Math.round(config.totalQuestions * MINUTES_PER_QUESTION * 60);
-
       dispatch({
         type: 'INIT',
         questions: data.questions,
         examSessionId: data.examSessionId,
-        timeRemaining,
+        timeRemaining: data.timeLimit,
+        examMode: data.mode,
       });
 
       setPhase('exam');
@@ -204,6 +200,44 @@ export default function ExamPage() {
       setIsGenerating(false);
     }
   }, []);
+
+  // Auto-start: skip setup modal when coming from practice page with autostart=true
+  useEffect(() => {
+    if (!isHydrated || phase !== 'setup' || isGenerating) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') !== 'true') return;
+
+    const mode = params.get('mode') || 'standard';
+
+    let requestBody: Record<string, unknown>;
+
+    if (mode === 'quick') {
+      const topic = params.get('topic');
+      if (!topic) {
+        // No topic provided for quick mode, pick random
+        const allTopicIds = TOPICS.map(t => t.id);
+        const randomTopic = allTopicIds[Math.floor(Math.random() * allTopicIds.length)];
+        requestBody = { mode: 'quick', topic: randomTopic };
+      } else {
+        requestBody = { mode: 'quick', topic };
+      }
+      const difficulty = params.get('difficulty');
+      if (difficulty) (requestBody as Record<string, unknown>).difficulty = difficulty;
+    } else if (mode === 'thpt') {
+      requestBody = { mode: 'thpt' };
+    } else {
+      // Standard mode
+      const topicsStr = params.get('topics');
+      const topics = topicsStr?.split(',').filter(Boolean) || [];
+      const resolvedTopics = topics.length > 0 ? topics : TOPICS.map(t => t.id);
+      requestBody = { mode: 'standard', topics: resolvedTopics };
+      const difficulty = params.get('difficulty');
+      if (difficulty) (requestBody as Record<string, unknown>).difficulty = difficulty;
+    }
+
+    handleStartExam(requestBody);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHydrated, handleStartExam]);
 
   // ─── Submit exam ───────────────────────────────────────────────────────────
 
@@ -249,15 +283,16 @@ export default function ExamPage() {
         };
       });
 
-      const totalTime = Math.round(state.questions.length * MINUTES_PER_QUESTION * 60);
-
       const res = await fetch('/api/v1/exam/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           answers: formattedAnswers,
-          timeTakenSecs: totalTime - state.timeRemaining,
+          timeTakenSecs: (state.timeRemaining > 0)
+            ? Math.max(0, (state.examMode === 'thpt' ? 5400 : state.examMode === 'standard' ? 2700 : 1200) - state.timeRemaining)
+            : 0,
           topics: [...new Set(state.questions.map(q => q.topic))],
+          mode: state.examMode.toUpperCase(),
         }),
       });
 
@@ -278,15 +313,46 @@ export default function ExamPage() {
     }
   };
 
+  // ─── Exam title based on mode ──────────────────────────────────────────────
+
+  const examTitle = state.examMode === 'thpt'
+    ? 'Đề thi thử THPT QG 2025'
+    : state.examMode === 'quick'
+    ? 'Thi nhanh'
+    : 'Luyện đề chuẩn';
+
+  const examBadge = state.examMode === 'thpt'
+    ? `12 TN + 4 ĐS + 6 TL`
+    : `${state.questions.length} câu`;
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   if (!isHydrated) return null;
 
-  // Setup phase: show topic/difficulty selection
+  // Setup phase: show loading when auto-generating, or setup modal
   if (phase === 'setup') {
+    if (isGenerating) {
+      return (
+        <div className="flex items-center justify-center h-screen bg-[#f8fafc]">
+          <div className="text-center">
+            <div className="w-10 h-10 border-[3px] border-[#059669]/20 border-t-[#059669] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-sm font-semibold text-gray-600">Đang tạo đề thi...</p>
+            {setupError && (
+              <p className="text-sm text-red-600 mt-3">{setupError}</p>
+            )}
+          </div>
+        </div>
+      );
+    }
     return (
       <div>
-        <ExamSetupModal onStart={handleStartExam} isLoading={isGenerating} />
+        <ExamSetupModal
+          onStart={(config) => handleStartExam({
+            mode: 'standard',
+            topics: config.topics,
+          })}
+          isLoading={isGenerating}
+        />
         {setupError && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
             <div className="rounded-xl bg-red-50 border border-red-200 px-6 py-3 text-sm text-red-700 shadow-lg">
@@ -304,7 +370,7 @@ export default function ExamPage() {
   return (
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden">
       <ExamSidebar
-        examTitle="Luyện đề THPT 2025"
+        examTitle={examTitle}
         totalQuestions={state.questions.length}
         currentIndex={state.currentIndex}
         answers={state.answers}
@@ -320,11 +386,11 @@ export default function ExamPage() {
         <header className="h-16 bg-white border-b border-[#e2e8f0] flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4">
             <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-              Đề thi thử
+              {examTitle}
             </span>
             <div className="h-4 w-px bg-slate-200" />
             <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase rounded">
-              {state.questions.length} câu
+              {examBadge}
             </span>
           </div>
 

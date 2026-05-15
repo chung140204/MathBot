@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Plus,
   Upload,
-  Database,
   LucideIcon
 } from 'lucide-react';
 
@@ -52,7 +51,6 @@ interface ContentStats {
   examSets: number;
   practice: number;
   thptExams: number;
-  knowledgeChunks: number;
 }
 
 interface RecentUser {
@@ -372,7 +370,6 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                   { label: 'Upload lý thuyết', icon: Upload, href: '/admin/upload?tab=theory', color: '#059669' },
                   { label: 'Thêm câu hỏi', icon: Plus, href: '/admin/questions/new', color: '#0891b2' },
                   { label: 'Tạo bộ đề mới', icon: BookOpen, href: '/admin/exams/new', color: '#7c3aed' },
-                  { label: 'Quản lý RAG', icon: Database, href: '/admin/rag', color: '#64748b' },
                 ].map((item) => (
                   <Link 
                     key={item.label}
@@ -393,7 +390,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                       <p className="text-[#64748b] text-[10px] mb-3">Xem tài liệu hướng dẫn quản trị MathBot</p>
                       <button className="text-[10px] font-bold text-white bg-[#0f172a] px-3 py-1.5 rounded-lg">Xem tài liệu</button>
                     </div>
-                    <Database className="absolute -bottom-4 -right-4 text-[#059669]/5" size={80} />
+                    <BookOpen className="absolute -bottom-4 -right-4 text-[#059669]/5" size={80} />
                  </div>
               </div>
             </div>
@@ -463,7 +460,6 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                   { label: 'Bộ đề ôn tập', count: contentStats?.examSets, color: '#0891b2' },
                   { label: 'Câu hỏi ôn luyện', count: contentStats?.practice, color: '#f59e0b' },
                   { label: 'Đề thi THPT', count: contentStats?.thptExams, color: '#7c3aed' },
-                  { label: 'RAG Knowledge', count: contentStats?.knowledgeChunks, color: '#94a3b8' },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -473,16 +469,6 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                     <span className="text-[#0f172a] text-[12px] font-bold">{item.count || 0}</span>
                   </div>
                 ))}
-              </div>
-              <div className="mt-8">
-                 <p className="text-[#94a3b8] text-[10px] mb-2 uppercase font-bold tracking-widest">Hiệu suất index</p>
-                 <div className="w-full h-1.5 bg-[#f1f5f9] rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-[#059669] to-[#0891b2]" style={{ width: '85%' }}></div>
-                 </div>
-                 <div className="flex justify-between mt-1.5">
-                    <span className="text-[#94a3b8] text-[10px]">Đã tối ưu 85%</span>
-                    <span className="text-[#059669] text-[10px] font-bold">Khỏe mạnh</span>
-                 </div>
               </div>
             </div>
 

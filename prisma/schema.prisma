@@ -15,14 +15,16 @@ model User {
   password     String
   name         String
   role         UserRole      @default(STUDENT)
+  isLocked     Boolean       @default(false)
   createdAt    DateTime      @default(now())
   grade        String?
   targetScore  String?
   image        String?
   settings     Json?         @default("{}")
   updatedAt    DateTime      @updatedAt
-  chatSessions ChatSession[]
-  examAttempts ExamAttempt[]
+  chatSessions  ChatSession[]
+  examAttempts  ExamAttempt[]
+  studyProgress StudyProgress[]
 
   @@map("users")
 }
@@ -71,6 +73,7 @@ model ExamAttempt {
   totalQuestions Int
   timeTakenSecs  Int
   topics         Topic[]
+  mode           ExamMode     @default(STANDARD)
   startedAt      DateTime     @default(now())
   submittedAt    DateTime     @default(now())
   answers        ExamAnswer[]
@@ -130,6 +133,7 @@ model ChatMessage {
   chatSessionId String
   role          MessageRole
   content       String
+  feedback      String?
   createdAt     DateTime    @default(now())
   chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
 
@@ -138,13 +142,40 @@ model ChatMessage {
 }
 
 model KnowledgeChunk {
-  id        String   @id @default(cuid())
+  id        String                    @id @default(cuid())
   content   String
   topic     Topic
   source    String
-  createdAt DateTime @default(now())
+  embedding Unsupported("vector(1024)")?
+  createdAt DateTime                  @default(now())
 
   @@map("knowledge_chunks")
+}
+
+model StudyContent {
+  id         String   @id @default(cuid())
+  topic      Topic
+  subsection String
+  title      String
+  content    String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([topic, subsection, title])
+  @@index([topic, subsection])
+  @@map("study_contents")
+}
+
+model StudyProgress {
+  id             String   @id @default(cuid())
+  userId         String
+  studyContentId String
+  readAt         DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, studyContentId])
+  @@index([userId])
+  @@map("study_progress")
 }
 
 enum UserRole {
@@ -162,6 +193,14 @@ enum QuestionType {
   PRACTICE
   EXAM_SET
   THPT_EXAM
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
 }
 
 enum Topic {
@@ -183,6 +222,12 @@ enum Difficulty {
   COMPREHENSION
   APPLICATION
   ADVANCED
+}
+
+enum ExamMode {
+  QUICK
+  STANDARD
+  THPT
 }
 
 enum MessageRole {

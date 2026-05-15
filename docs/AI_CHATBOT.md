@@ -1,6 +1,6 @@
 # AI Chatbot & RAG Pipeline – MathBot
 
-_Last updated: 2025-04-10_
+_Last updated: 2026-05-05_
 
 > Read after: `API_SPEC.md` | Read next: `FEATURE_FLAGS.md`
 
@@ -8,38 +8,56 @@ _Last updated: 2025-04-10_
 
 ## Overview
 
-The chatbot uses **Retrieval-Augmented Generation (RAG)** to ground GPT-4o responses in verified Grade 12 Math content stored internally — reducing hallucination and keeping answers aligned with the Vietnamese curriculum.
+The chatbot uses **Retrieval-Augmented Generation (RAG)** to ground LLM responses in verified Grade 12 Math content stored internally — reducing hallucination and keeping answers aligned with the Vietnamese curriculum.
 
 Pipeline summary:
-1. Embed the user's message → search `knowledge_chunks` via pgvector
-2. Inject top-K results as context into the system prompt
-3. Stream GPT-4o response back to the client
-4. Persist both messages to the database
+1. Validate request (Zod) & rate limit (20 msg/min per user)
+2. Verify session ownership
+3. Embed the user's message → search `knowledge_chunks` via pgvector
+4. Inject top-K results as context into the system prompt
+5. Stream LLM response back to the client (SSE)
+6. Persist both messages to the database
 
 ---
 
 ## Models
 
-| Purpose | Model | Notes |
-|---------|-------|-------|
-| Chat completion | `gpt-4o` | Streaming, use `gpt-4o-mini` during development |
-| Embedding | `text-embedding-3-small` | 1536 dimensions |
+| Purpose | Model | Provider | Notes |
+|---------|-------|----------|-------|
+| Chat completion (text) | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA NIM | Streaming, reasoning tokens enabled |
+| Chat completion (vision) | `meta/llama-3.2-90b-vision-instruct` | NVIDIA NIM | Used when image attached |
+| Embedding | `nvidia/nv-embedqa-e5-v5` | NVIDIA NIM | 1024 dimensions |
 
-> To reduce cost during development, set `OPENAI_CHAT_MODEL=gpt-4o-mini` in `.env.local`.
-> The model is read from env — never hardcoded.
+> All models accessed via NVIDIA API (`https://integrate.api.nvidia.com/v1`) using the OpenAI SDK with custom `baseURL`.
+> Model names are configurable via environment variables.
 
 ---
 
 ## File structure
 
 ```
-src/lib/
-├── openai.ts          ← Singleton OpenAI client
+lib/
+├── db.ts              ← Prisma Client singleton (Neon adapter)
 └── rag/
-    ├── embed.ts       ← Create embeddings
-    ├── search.ts      ← pgvector similarity search
-    ├── pipeline.ts    ← Orchestrate the full RAG flow
-    └── prompts.ts     ← System prompt builders
+    ├── embed.ts       ← Create embeddings (NVIDIA API)
+    ├── search.ts      ← pgvector cosine similarity search
+    ├── pipeline.ts    ← Orchestrate: embed → search (graceful fallback)
+    └── prompts.ts     ← System prompt builder with context injection
+
+app/
+├── chat/
+│   ├── api/route.ts   ← Main chat endpoint (POST, SSE streaming)
+│   ├── page.tsx       ← Chat UI page
+│   └── layout.tsx     ← Chat layout wrapper
+└── api/v1/
+    ├── chat/sessions/route.ts      ← Session CRUD (GET, POST, DELETE)
+    └── knowledge/ingest/route.ts   ← Admin: add knowledge chunks
+
+components/chat/
+├── ChatWindow.tsx     ← Main chat interface, streaming handler
+├── ChatSidebar.tsx    ← Session list, grouped by date
+├── MessageBubble.tsx  ← Markdown + KaTeX rendering, edit support
+└── MathInput.tsx      ← Textarea with formula palette, image upload
 ```
 
 ---
@@ -47,127 +65,138 @@ src/lib/
 ## RAG pipeline
 
 ```typescript
-// src/lib/rag/pipeline.ts
+// lib/rag/pipeline.ts
 
-export async function ragPipeline(
-  userMessage: string,
-  chatHistory: { role: 'user' | 'assistant'; content: string }[]
-): Promise<ReadableStream> {
-
-  // Step 1: Embed the user's question
+export async function ragSearch(userMessage: string): Promise<KnowledgeChunkResult[]> {
+  // Graceful fallback: if any step fails, returns [] (chat still works)
   const embedding = await createEmbedding(userMessage)
-
-  // Step 2: Retrieve top-5 relevant knowledge chunks
-  const chunks = await searchSimilarChunks(embedding, 5)
-
-  // Step 3: Build system prompt with retrieved context
-  const systemPrompt = buildSystemPrompt(chunks)
-
-  // Step 4: Stream GPT-4o response
-  const stream = await openai.chat.completions.create({
-    model: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o',
-    stream: true,
-    temperature: 0.3,
-    max_tokens: 1500,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...chatHistory.slice(-10),          // Last 10 messages to stay within context window
-      { role: 'user', content: userMessage },
-    ],
-  })
-
-  return stream
+  const chunks = await searchSimilarChunks(embedding)
+  return chunks
 }
+```
+
+Integrated in `app/chat/api/route.ts`:
+```typescript
+const chunks = await ragSearch(lastUserMessage);
+const systemPrompt = { role: 'system', content: buildSystemPrompt(chunks) };
+// ... then pass to LLM with last 10 messages
 ```
 
 ---
 
 ## System prompt
 
-```typescript
-// src/lib/rag/prompts.ts
+Built by `lib/rag/prompts.ts` — includes:
+- Vietnamese language enforcement
+- Streaming-safe formatting rules (no HTML, short lines)
+- LaTeX formatting requirements (KaTeX compatible)
+- Structured answer format (Lời giải → Kết quả)
+- Retrieved knowledge chunks injected as "TÀI LIỆU THAM KHẢO" section
 
-export function buildSystemPrompt(chunks: KnowledgeChunk[]): string {
-  const context = chunks.length > 0
-    ? chunks.map(c => `[${c.topic} — ${c.source}]\n${c.content}`).join('\n\n---\n\n')
-    : 'No specific reference material found. Answer from general knowledge.'
-
-  return `You are MathBot — an AI tutor specialized in helping Vietnamese students (Grade 12) prepare for university entrance exams in Mathematics.
-
-## Behavior rules
-- Answer only questions related to Grade 12 Mathematics and university exam preparation
-- Explain solutions step by step, clearly and concisely
-- Write all mathematical expressions in LaTeX: inline $...$ or block $$...$$
-- If you are not confident in an answer, say so explicitly — do not fabricate
-- After solving a problem, ask if the student wants to try a similar one
-- Keep responses focused; avoid unnecessary disclaimers
-
-## Reference material (use to improve accuracy)
-${context}
-
-## Topics in scope
-Limits & Continuity, Derivatives, Integrals, Complex Numbers, Volumes,
-Combinatorics & Probability, Sequences, Exponential & Logarithmic Functions,
-Function Analysis, Analytic Geometry (Oxy), Solid Geometry`
-}
-```
+When no relevant chunks found, the section is omitted and the model answers from general knowledge.
 
 ---
 
 ## Embedding & vector search
 
 ```typescript
-// src/lib/rag/embed.ts
-import OpenAI from 'openai'
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
+// lib/rag/embed.ts
 export async function createEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
-    model: 'text-embedding-3-small',
-    input: text.slice(0, 8000),   // Hard limit — model max is ~8192 tokens
-  })
-  return response.data[0].embedding
+  // Uses NVIDIA API via OpenAI SDK
+  // Model: nvidia/nv-embedqa-e5-v5 (1024 dims)
+  // Input truncated to 2000 chars
 }
 ```
 
 ```typescript
-// src/lib/rag/search.ts
-import { prisma } from '@/lib/prisma'
-
+// lib/rag/search.ts
 export async function searchSimilarChunks(
   embedding: number[],
-  topK: number = 5,
-  similarityThreshold: number = 0.7
-) {
-  const vectorStr = `[${embedding.join(',')}]`
-
-  return prisma.$queryRaw<KnowledgeChunk[]>`
-    SELECT id, content, topic, source,
-           1 - (embedding <=> ${vectorStr}::vector) AS similarity
-    FROM knowledge_chunks
-    WHERE 1 - (embedding <=> ${vectorStr}::vector) > ${similarityThreshold}
-    ORDER BY embedding <=> ${vectorStr}::vector
-    LIMIT ${topK}
-  `
+  topK: number = 5,          // from RAG_TOP_K env
+  threshold: number = 0.7    // from RAG_SIMILARITY_THRESHOLD env
+): Promise<KnowledgeChunkResult[]> {
+  // Raw SQL with pgvector cosine distance operator (<=>)
+  // Returns: id, content, topic, source, similarity score
 }
 ```
 
 ---
 
+## Security & reliability
+
+| Feature | Implementation |
+|---------|---------------|
+| Authentication | NextAuth session required |
+| Session ownership | Verified before message save |
+| Rate limiting | 20 msg/min per user (in-memory) |
+| Input validation | Zod schema (messages, sessionId, imageBase64) |
+| Image validation | Format check (data:image/*;base64) + size limit (4MB) |
+| Stream errors | Caught and sent as error event to client |
+| DB save failures | Warning event sent to client before stream close |
+| RAG fallback | If embedding/search fails → chat works without context |
+
+---
+
+## Vision support
+
+When user attaches an image:
+1. Client validates format (`data:image/(png|jpeg|jpg|gif|webp);base64,...`) and size (max 4MB)
+2. Image embedded in message as markdown: `![image](base64...)\n\nuser text`
+3. API reformats to OpenAI vision format: `[{type: 'text'}, {type: 'image_url'}]`
+4. Model switches to `meta/llama-3.2-90b-vision-instruct`
+5. RAG still runs on the text portion
+
+---
+
+## Thinking/reasoning tokens (NVIDIA)
+
+When using NVIDIA models (non-vision):
+- `enable_thinking: true` is passed via `extra_body`
+- `reasoning_budget: 16384` tokens allocated
+- Stream events: `thinking_start` → `reasoning` chunks → `thinking_end` → `content` chunks
+- Client displays reasoning in collapsible section
+
+---
+
 ## KaTeX rendering
 
-The client renders LaTeX returned by the AI using **KaTeX**.
+The client renders LaTeX using **remark-math + rehype-katex** in `MessageBubble.tsx`.
 
+Content normalization (handles various LLM output formats):
+- `\[...\]` → `$$...$$` (display math)
+- `\(...\)` → `$...$` (inline math)
+
+**LaTeX conventions:**
+- Inline math: `$f(x) = x^2$`
+- Block math: `$$\int_0^1 x^2\,dx = \frac{1}{3}$$`
+
+---
+
+## Knowledge ingestion
+
+### Via API (admin only)
 ```bash
-npm install katex react-katex
+POST /api/v1/knowledge/ingest
+Authorization: (admin session required)
+
+{
+  "content": "Đạo hàm của hàm số: $(x^n)' = nx^{n-1}$ ...",
+  "topic": "DERIVATIVES",
+  "source": "SGK Toán 12 - Chương 1"
+}
 ```
 
-`MathRenderer` component (`src/components/MathRenderer.tsx`) parses the full message string, splits on `$...$` and `$$...$$` delimiters, and renders each math segment with KaTeX. Plain text segments are rendered as Markdown.
+### Via seed script
+```bash
+npx prisma db seed
+```
+Seeds 12 sample knowledge chunks covering all topics with auto-generated embeddings.
 
-**LaTeX conventions for AI responses:**
-- Inline math: `$f(x) = x^2$`
-- Block math (displayed on its own line): `$$\int_0^1 x^2\,dx = \frac{1}{3}$$`
+### Data requirements
+For production RAG quality, need comprehensive knowledge base:
+- SGK Toán 12 content (formulas, theorems, examples)
+- THPT exam solutions from past years
+- Organized by Topic enum values
 
 ---
 
@@ -175,26 +204,46 @@ npm install katex react-katex
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENAI_API_KEY` | — | Required. OpenAI secret key |
-| `OPENAI_CHAT_MODEL` | `gpt-4o` | Chat model name |
-| `OPENAI_EMBED_MODEL` | `text-embedding-3-small` | Embedding model |
+| `OPENAI_API_KEY` | — | Required. NVIDIA API key |
+| `NVIDIA_BASE_URL` | — | NVIDIA NIM endpoint URL |
+| `NVIDIA_MODEL` | `gpt-4o` | Chat model name |
+| `EMBED_MODEL` | `nvidia/nv-embedqa-e5-v5` | Embedding model |
 | `RAG_TOP_K` | `5` | Number of chunks to retrieve |
 | `RAG_SIMILARITY_THRESHOLD` | `0.7` | Minimum cosine similarity |
 | `CHAT_MAX_HISTORY` | `10` | Max messages sent as context |
-| `CHAT_MAX_TOKENS` | `1500` | Max response tokens |
+
+---
+
+## SSE event protocol
+
+Events sent from server to client during streaming:
+
+| Event | Format | When |
+|-------|--------|------|
+| New session | `{ event: 'session', sessionId }` | First message creates session |
+| Thinking start | `{ event: 'thinking_start' }` | NVIDIA reasoning begins |
+| Reasoning | `{ reasoning: "..." }` | Each reasoning chunk |
+| Thinking end | `{ event: 'thinking_end' }` | Reasoning complete |
+| Content | `{ content: "..." }` | Each response chunk |
+| Error | `{ event: 'error', message }` | Stream/API failure |
+| Warning | `{ event: 'warning', message }` | DB save failed |
+| Done | `[DONE]` | Stream complete |
 
 ---
 
 ## Extending the pipeline
 
+**Add more knowledge:**
+Use the ingestion API or create a PDF parsing script to bulk-insert chunks.
+
 **Swap the LLM provider:**
-Only change `src/lib/openai.ts` and the model name in `src/lib/rag/pipeline.ts`. The rest of the system is provider-agnostic.
+Change `NVIDIA_BASE_URL` and model env vars. The OpenAI SDK is provider-agnostic.
 
 **Add chunk re-ranking:**
-After `searchSimilarChunks`, pass results through a cross-encoder before building the prompt. No other files need to change.
+After `searchSimilarChunks`, pass results through a cross-encoder before building the prompt.
 
 **Add hybrid search (keyword + vector):**
-Extend `src/lib/rag/search.ts` to combine pgvector results with PostgreSQL `ts_rank` full-text search, then merge and de-duplicate results.
+Extend `lib/rag/search.ts` to combine pgvector results with PostgreSQL `ts_rank` full-text search.
 
 **Add a new subject:**
 1. Add new `Topic` enum values to `prisma/schema.prisma`

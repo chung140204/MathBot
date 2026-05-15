@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
       format: format as QuestionFormat,
       questionType: (questionType as QuestionType) || 'PRACTICE',
       options: (options as Prisma.InputJsonValue) || {},
+      answer: '',
     };
 
     if (format === 'MULTIPLE_CHOICE') {
