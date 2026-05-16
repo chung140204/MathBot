@@ -55,6 +55,13 @@ COPY --from=builder /app/prisma ./prisma
 # Copy sharp + onnxruntime native modules
 COPY --from=builder /app/node_modules/sharp ./node_modules/sharp
 COPY --from=builder /app/node_modules/@img ./node_modules/@img
+COPY --from=builder /app/node_modules/onnxruntime-node ./node_modules/onnxruntime-node
+
+# Copy YOLO model
+COPY --from=builder /app/models/best.onnx ./models/best.onnx
+
+# Create uploads directories
+RUN mkdir -p /app/public/uploads/avatars /app/public/uploads/questions
 
 # Set ownership
 RUN chown -R nextjs:nodejs /app

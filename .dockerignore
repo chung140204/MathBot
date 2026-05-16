@@ -16,5 +16,6 @@ scratch
 .vscode
 .idea
 .vercel
-models/*.onnx
 models/*.pt
+models/*.onnx.data
+models/.cache

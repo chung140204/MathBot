@@ -9,7 +9,7 @@ const profileSchema = z.object({
   email: z.string().email().optional(),
   grade: z.string().max(10).optional().nullable(),
   targetScore: z.string().max(5).optional().nullable(),
-  image: z.string().url().max(500).optional().nullable(),
+  image: z.string().max(500).optional().nullable(),
   settings: z.record(z.string(), z.unknown()).optional(),
 });
 

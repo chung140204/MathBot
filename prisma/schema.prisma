@@ -22,9 +22,10 @@ model User {
   image        String?
   settings     Json?         @default("{}")
   updatedAt    DateTime      @updatedAt
-  chatSessions  ChatSession[]
-  examAttempts  ExamAttempt[]
-  studyProgress StudyProgress[]
+  chatSessions   ChatSession[]
+  examAttempts   ExamAttempt[]
+  studyProgress  StudyProgress[]
+  studyBookmarks StudyBookmark[]
 
   @@map("users")
 }
@@ -102,18 +103,6 @@ model ExamAnswer {
   @@map("exam_answers")
 }
 
-model ExamSet {
-  id             String   @id @default(cuid())
-  title          String   @default("Untitled Exam")
-  examYear       Int?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  pointPerMC     Float    @default(0.2)
-  pointPerSA     Float    @default(0.5)
-  pointPerTFItem Float    @default(0.25)
-
-  @@map("exam_sets")
-}
 
 model ChatSession {
   id        String        @id @default(cuid())
@@ -176,6 +165,19 @@ model StudyProgress {
   @@unique([userId, studyContentId])
   @@index([userId])
   @@map("study_progress")
+}
+
+model StudyBookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  topic      String
+  subsection String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, topic, subsection])
+  @@index([userId])
+  @@map("study_bookmarks")
 }
 
 enum UserRole {

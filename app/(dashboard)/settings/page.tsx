@@ -1,29 +1,12 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useSession, signOut } from 'next-auth/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SettingsTab = 'account' | 'notifications' | 'ai-chat' | 'practice' | 'security';
-
-interface LoginProvider {
-  id: string;
-  name: string;
-  icon: React.ReactNode;
-  connected: boolean;
-  email?: string;
-}
-
-interface Session {
-  id: string;
-  device: string;
-  browser: string;
-  ip: string;
-  lastActive: string;
-  isCurrent: boolean;
-}
 
 // ─── Password strength ───────────────────────────────────────────────────────
 
@@ -45,72 +28,6 @@ function getPasswordStrength(password: string): { score: number; label: string; 
   return { score: 0, label: '', color: 'bg-gray-200' };
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const PROVIDERS: LoginProvider[] = [
-  {
-    id: 'google',
-    name: 'Google',
-    icon: (
-      <span className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-lg font-bold text-blue-500 shadow-sm">
-        G
-      </span>
-    ),
-    connected: true,
-    email: 'thanh.nguyen@gmail.com',
-  },
-  {
-    id: 'email',
-    name: 'Email',
-    icon: (
-      <span className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm">
-        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      </span>
-    ),
-    connected: true,
-    email: 'thanh@mathbot.vn',
-  },
-  {
-    id: 'facebook',
-    name: 'Facebook',
-    icon: (
-      <span className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-lg font-bold text-blue-600 shadow-sm">
-        f
-      </span>
-    ),
-    connected: false,
-  },
-];
-
-const SESSIONS: Session[] = [
-  {
-    id: 's1',
-    device: 'Windows PC',
-    browser: 'Chrome 124',
-    ip: '192.168.1.10',
-    lastActive: 'Đang hoạt động',
-    isCurrent: true,
-  },
-  {
-    id: 's2',
-    device: 'iPhone 15',
-    browser: 'Safari 17',
-    ip: '10.0.0.42',
-    lastActive: '2 giờ trước',
-    isCurrent: false,
-  },
-  {
-    id: 's3',
-    device: 'MacBook Pro',
-    browser: 'Firefox 125',
-    ip: '172.16.0.5',
-    lastActive: '1 ngày trước',
-    isCurrent: false,
-  },
-];
-
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'account', label: 'Tài khoản' },
   { id: 'notifications', label: 'Thông báo' },
@@ -118,25 +35,6 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'practice', label: 'Luyện tập' },
   { id: 'security', label: 'Bảo mật' },
 ];
-
-// ─── Device icons ─────────────────────────────────────────────────────────────
-
-function DeviceIcon({ device }: { device: string }) {
-  if (device.toLowerCase().includes('iphone') || device.toLowerCase().includes('android')) {
-    return (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-      </svg>
-    );
-  }
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-        d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  );
-}
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 
@@ -175,6 +73,8 @@ export default function SettingsPage() {
   const [accountImage, setAccountImage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Security state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -188,11 +88,10 @@ export default function SettingsPage() {
   const passwordsMatch = newPassword.length > 0 && confirmPassword.length > 0 && newPassword === confirmPassword;
   const passwordsMismatch = newPassword.length > 0 && confirmPassword.length > 0 && newPassword !== confirmPassword;
 
-  // Providers & Sessions state
-  const [providers, setProviders] = useState<LoginProvider[]>(PROVIDERS);
-  const [connectingId, setConnectingId] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<Session[]>(SESSIONS);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
+  // Delete account state
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Notifications state
   const [notifyDaily, setNotifyDaily] = useState(true);
@@ -230,12 +129,39 @@ export default function SettingsPage() {
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
-        // Preference order: DB data > Session data > Default
         setAccountName(data.name || session?.user?.name || '');
         setAccountEmail(data.email || session?.user?.email || '');
         setAccountClass(data.grade || 'Lớp 12');
         setAccountGoal(data.targetScore || '8.0 - 9.0 điểm');
         setAccountImage(data.image || session?.user?.image || '');
+
+        // Load settings from DB
+        const s = data.settings;
+        if (s && typeof s === 'object') {
+          // Notifications
+          if (s.notifications) {
+            if (typeof s.notifications.daily === 'boolean') setNotifyDaily(s.notifications.daily);
+            if (s.notifications.time) setNotifyTime(s.notifications.time);
+            if (typeof s.notifications.exam === 'boolean') setNotifyExam(s.notifications.exam);
+            if (typeof s.notifications.email === 'boolean') setNotifyEmail(s.notifications.email);
+            if (typeof s.notifications.streak === 'boolean') setNotifyStreak(s.notifications.streak);
+          }
+          // AI & Chat
+          if (s.aiChat) {
+            if (s.aiChat.style) setAiStyle(s.aiChat.style);
+            if (typeof s.aiChat.suggest === 'boolean') setAiSuggest(s.aiChat.suggest);
+            if (typeof s.aiChat.saveHistory === 'boolean') setAiSaveHistory(s.aiChat.saveHistory);
+            if (s.aiChat.language) setAiLanguage(s.aiChat.language);
+          }
+          // Practice
+          if (s.practice) {
+            if (s.practice.questionCount) setPracticeQuestionCount(s.practice.questionCount);
+            if (typeof s.practice.showTimer === 'boolean') setPracticeShowTimer(s.practice.showTimer);
+            if (typeof s.practice.shuffle === 'boolean') setPracticeShuffle(s.practice.shuffle);
+            if (typeof s.practice.showAnswers === 'boolean') setPracticeShowAnswers(s.practice.showAnswers);
+            if (s.practice.difficulty) setPracticeDifficulty(s.practice.difficulty);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch profile:', err);
       } finally {
@@ -247,6 +173,50 @@ export default function SettingsPage() {
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Ảnh quá lớn (tối đa 5MB)');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/v1/user/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      const data = await res.json();
+      setAccountImage(data.url);
+
+      // Auto-save to profile DB
+      await fetch('/api/v1/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: data.url }),
+      });
+
+      toast.success('Đã cập nhật ảnh đại diện!');
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      toast.error('Có lỗi khi tải ảnh lên.');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  }
+
   async function handleSave() {
     setIsSaving(true);
     try {
@@ -256,9 +226,31 @@ export default function SettingsPage() {
         body: JSON.stringify({
           name: accountName,
           email: accountEmail,
+          grade: accountClass,
           targetScore: accountGoal,
           image: accountImage,
-          // Skipping grade as requested
+          settings: {
+            notifications: {
+              daily: notifyDaily,
+              time: notifyTime,
+              exam: notifyExam,
+              email: notifyEmail,
+              streak: notifyStreak,
+            },
+            aiChat: {
+              style: aiStyle,
+              suggest: aiSuggest,
+              saveHistory: aiSaveHistory,
+              language: aiLanguage,
+            },
+            practice: {
+              questionCount: practiceQuestionCount,
+              showTimer: practiceShowTimer,
+              shuffle: practiceShuffle,
+              showAnswers: practiceShowAnswers,
+              difficulty: practiceDifficulty,
+            },
+          },
         }),
       });
 
@@ -278,34 +270,31 @@ export default function SettingsPage() {
     if (strength.score < 2) return;
 
     setIsChangingPassword(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1500));
-    setIsChangingPassword(false);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    toast.success('Mật khẩu đã được cập nhật!');
-  }
+    try {
+      const res = await fetch('/api/v1/user/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
 
-  async function handleToggleProvider(id: string) {
-    setConnectingId(id);
-    await new Promise((r) => setTimeout(r, 1000));
-    setProviders((prev: LoginProvider[]) =>
-      prev.map((p) => (p.id === id ? { ...p, connected: !p.connected } : p))
-    );
-    setConnectingId(null);
-  }
+      const data = await res.json();
 
-  async function handleRevokeSession(id: string) {
-    setRevokingId(id);
-    await new Promise((r) => setTimeout(r, 800));
-    setSessions((prev: Session[]) => prev.filter((s) => s.id !== id));
-    setRevokingId(null);
-  }
+      if (!res.ok) {
+        throw new Error(data.error || 'Đổi mật khẩu thất bại');
+      }
 
-  async function handleRevokeAll() {
-    if (!confirm('Bạn sẽ bị đăng xuất khỏi tất cả các thiết bị khác. Tiếp tục?')) return;
-    setSessions((prev: Session[]) => prev.filter((s) => s.isCurrent));
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      toast.success('Mật khẩu đã được cập nhật!');
+    } catch (err: any) {
+      toast.error(err.message || 'Có lỗi xảy ra khi đổi mật khẩu.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   }
 
   function handleLogout() {
@@ -313,9 +302,33 @@ export default function SettingsPage() {
     signOut({ callbackUrl: '/login' });
   }
 
-  function handleDeleteAccount() {
-    if (!confirm('⚠️ Hành động này không thể hoàn tác!\n\nTất cả dữ liệu học tập, lịch sử thi và cuộc trò chuyện sẽ bị xoá vĩnh viễn.\n\nBạn có chắc chắn?')) return;
-    toast('Chức năng xoá tài khoản sẽ được triển khai sau.');
+  async function handleDeleteAccount() {
+    if (!deletePassword) {
+      toast.error('Vui lòng nhập mật khẩu để xác nhận.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      const res = await fetch('/api/v1/user/account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: deletePassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Xóa tài khoản thất bại');
+      }
+
+      toast.success('Tài khoản đã được xóa.');
+      signOut({ callbackUrl: '/login' });
+    } catch (err: any) {
+      toast.error(err.message || 'Có lỗi xảy ra.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -328,7 +341,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-black text-gray-900">Cài đặt ⚙️</h1>
           <p className="text-sm text-gray-500 mt-1">Quản lý tài khoản và tuỳ chỉnh trải nghiệm</p>
         </div>
-        <button 
+        <button
           onClick={handleSave}
           disabled={isSaving}
           className="px-5 py-2.5 bg-gray-900 text-white font-bold rounded-xl shadow-sm hover:bg-gray-800 transition-all disabled:opacity-50"
@@ -526,152 +539,7 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          {/* ━━ Section 2: Login Providers ━━ */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">Phương thức đăng nhập</h2>
-            <p className="text-sm text-gray-500 mt-0.5 mb-6">
-              Quản lý các tài khoản liên kết với MathBot
-            </p>
-
-            <div className="space-y-4">
-              {providers.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/50 transition-colors"
-                >
-                  {provider.icon}
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900 text-sm">{provider.name}</span>
-                      {provider.connected ? (
-                        <span className="px-2 py-0.5 bg-[#f0fdf9] text-[#059669] text-xs font-bold rounded-full border border-[#059669]/20">
-                          Đã kết nối
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-full">
-                          Chưa kết nối
-                        </span>
-                      )}
-                    </div>
-                    {provider.email && (
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{provider.email}</p>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => handleToggleProvider(provider.id)}
-                    disabled={connectingId === provider.id}
-                    className={`px-4 py-2 text-sm font-semibold rounded-xl border transition-all
-                      ${provider.connected
-                        ? 'text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                        : 'text-[#059669] border-[#059669]/30 bg-[#f0fdf9] hover:bg-[#059669]/10'
-                      }
-                      disabled:opacity-50
-                    `}
-                  >
-                    {connectingId === provider.id ? (
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                        ...
-                      </span>
-                    ) : provider.connected ? (
-                      'Ngắt kết nối'
-                    ) : (
-                      'Kết nối'
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* ━━ Section 3: Active Sessions ━━ */}
-          <section className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Phiên đăng nhập</h2>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Quản lý các thiết bị đang truy cập tài khoản
-                </p>
-              </div>
-
-              {sessions.filter((s) => !s.isCurrent).length > 0 && (
-                <button
-                  onClick={handleRevokeAll}
-                  className="px-4 py-2 text-sm font-semibold text-red-500 border border-red-200 rounded-xl
-                    hover:bg-red-50 transition-all"
-                >
-                  Đăng xuất tất cả
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={`flex items-center gap-4 p-4 rounded-xl border transition-colors
-                    ${session.isCurrent
-                      ? 'border-[#059669]/30 bg-[#f0fdf9]'
-                      : 'border-gray-100 hover:bg-gray-50/50'
-                    }
-                  `}
-                >
-                  {/* Device icon */}
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center
-                    ${session.isCurrent
-                      ? 'bg-[#059669]/10 text-[#059669]'
-                      : 'bg-gray-100 text-gray-500'
-                    }
-                  `}>
-                    <DeviceIcon device={session.device} />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900 text-sm">{session.device}</span>
-                      {session.isCurrent && (
-                        <span className="px-2 py-0.5 bg-[#059669] text-white text-[10px] font-bold rounded-full">
-                          Thiết bị này
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {session.browser} · {session.ip} · {session.lastActive}
-                    </p>
-                  </div>
-
-                  {/* Revoke button */}
-                  {!session.isCurrent && (
-                    <button
-                      onClick={() => handleRevokeSession(session.id)}
-                      disabled={revokingId === session.id}
-                      className="px-4 py-2 text-sm font-semibold text-red-500 border border-red-200 rounded-xl
-                        hover:bg-red-50 transition-all disabled:opacity-50"
-                    >
-                      {revokingId === session.id ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-3 h-3 border-2 border-red-300 border-t-red-500 rounded-full animate-spin" />
-                        </span>
-                      ) : (
-                        'Thu hồi'
-                      )}
-                    </button>
-                  )}
-                </div>
-              ))}
-
-              {sessions.length === 1 && sessions[0].isCurrent && (
-                <p className="text-sm text-gray-400 text-center py-3">
-                  Không có phiên đăng nhập nào khác
-                </p>
-              )}
-            </div>
-          </section>
-
-          {/* ━━ Section 4: Danger Zone ━━ */}
+          {/* ━━ Section 2: Danger Zone ━━ */}
           <section className="rounded-2xl border-2 border-red-200 p-6 bg-red-50/30">
             <h2 className="text-lg font-bold text-red-600 flex items-center gap-2">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -703,20 +571,64 @@ export default function SettingsPage() {
               </div>
 
               {/* Delete account */}
-              <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-red-100">
-                <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">Xoá tài khoản</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Xoá vĩnh viễn tài khoản và toàn bộ dữ liệu học tập
-                  </p>
+              <div className="p-4 bg-white rounded-xl border border-red-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 text-sm">Xoá tài khoản</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Xoá vĩnh viễn tài khoản và toàn bộ dữ liệu học tập
+                    </p>
+                  </div>
+                  {!showDeleteConfirm ? (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl
+                        hover:bg-red-600 transition-all"
+                    >
+                      Xoá tài khoản
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
+                      className="px-4 py-2 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+                    >
+                      Huỷ
+                    </button>
+                  )}
                 </div>
-                <button
-                  onClick={handleDeleteAccount}
-                  className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl
-                    hover:bg-red-600 transition-all"
-                >
-                  Xoá tài khoản
-                </button>
+
+                {showDeleteConfirm && (
+                  <div className="mt-4 pt-4 border-t border-red-100">
+                    <p className="text-sm text-red-600 font-medium mb-3">
+                      Nhập mật khẩu để xác nhận xoá tài khoản. Hành động này không thể hoàn tác.
+                    </p>
+                    <div className="flex gap-3">
+                      <input
+                        type="password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="Nhập mật khẩu xác nhận"
+                        className="flex-1 px-4 py-2.5 border border-red-200 rounded-xl text-sm
+                          focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition-all"
+                      />
+                      <button
+                        onClick={handleDeleteAccount}
+                        disabled={isDeletingAccount || !deletePassword}
+                        className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl
+                          hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isDeletingAccount ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Đang xoá...
+                          </span>
+                        ) : (
+                          'Xác nhận xoá'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -734,9 +646,9 @@ export default function SettingsPage() {
               {/* Avatar */}
               <div className="flex items-center gap-6">
                 {accountImage ? (
-                  <img 
-                    src={accountImage} 
-                    alt="Avatar" 
+                  <img
+                    src={accountImage}
+                    alt="Avatar"
                     className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md"
                   />
                 ) : (
@@ -749,14 +661,26 @@ export default function SettingsPage() {
                   <p className="text-sm text-gray-500">{accountEmail}</p>
                 </div>
                 <div className="ml-auto flex flex-col gap-2">
-                  <button 
-                    onClick={() => {
-                      const url = prompt('Nhập URL ảnh đại diện mới:', accountImage);
-                      if (url !== null) setAccountImage(url);
-                    }}
-                    className="px-5 py-2 border border-gray-200 text-gray-900 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-all text-sm"
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="px-5 py-2 border border-gray-200 text-gray-900 font-bold rounded-xl shadow-sm hover:bg-gray-50 transition-all text-sm disabled:opacity-50"
                   >
-                    Đổi ảnh
+                    {isUploadingAvatar ? (
+                      <span className="flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        Đang tải...
+                      </span>
+                    ) : (
+                      'Đổi ảnh'
+                    )}
                   </button>
                 </div>
               </div>
@@ -945,7 +869,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Practice tab placeholder */}
+      {/* Practice tab */}
       {activeTab === 'practice' && (
         <div className="space-y-8">
           <section className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">

@@ -10,30 +10,27 @@ export async function GET() {
   }
 
   try {
-    let theory = 124;
-    let examSets = 42;
-    let practice = 850;
+    let theory = 0;
+    let practice = 0;
+    let thptExams = 0;
     let knowledgeChunks = 0;
 
-    try {
-      knowledgeChunks = await prisma.knowledgeChunk.count();
-    } catch (e) {
-      console.error("[Content Stats] Error counting knowledge chunks:", e);
-    }
+    const results = await Promise.allSettled([
+      prisma.studyContent.count(),
+      prisma.question.count({ where: { isActive: true, questionType: 'PRACTICE' } }),
+      prisma.question.count({ where: { isActive: true, questionType: 'THPT_EXAM' } }),
+      prisma.knowledgeChunk.count(),
+    ]);
 
-    try {
-      practice = await prisma.question.count({ where: { isActive: true } });
-    } catch (e) {
-      console.error("[Content Stats] Error counting active questions:", e);
-    }
-
-    // Additional sequential counts as needed...
+    if (results[0].status === 'fulfilled') theory = results[0].value;
+    if (results[1].status === 'fulfilled') practice = results[1].value;
+    if (results[2].status === 'fulfilled') thptExams = results[2].value;
+    if (results[3].status === 'fulfilled') knowledgeChunks = results[3].value;
 
     return NextResponse.json({
       theory,
-      examSets,
       practice,
-      thptExams: 12, // Still mock as no clear model yet
+      thptExams,
       knowledgeChunks,
     });
   } catch (error: unknown) {

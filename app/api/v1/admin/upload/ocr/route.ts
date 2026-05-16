@@ -201,14 +201,13 @@ export async function POST(req: NextRequest) {
     });
     const nvidiaVisionModel = process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct';
 
-    // Stage 2 Text: Groq if available, else NVIDIA
-    const textClient = process.env.GROQ_API_KEY
-      ? new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: 'https://api.groq.com/openai/v1' })
-      : new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.NVIDIA_BASE_URL || undefined });
-    const textModel = process.env.GROQ_API_KEY
-      ? (process.env.GROQ_MODEL || 'llama-3.3-70b-versatile')
-      : (process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct');
-    const textProvider = process.env.GROQ_API_KEY ? 'Groq' : 'NVIDIA';
+    // Stage 2 Text: NVIDIA
+    const textClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.NVIDIA_BASE_URL || undefined,
+    });
+    const textModel = process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct';
+    const textProvider = 'NVIDIA';
 
     console.log(`[OCR_API] Stage 1 vision: ${visionModel} (${process.env.GEMINI_API_KEY ? 'Gemini' : 'NVIDIA'})`);
     console.log(`[OCR_API] Stage 2 text:   ${textModel} (${textProvider})`);
@@ -476,26 +475,7 @@ export async function POST(req: NextRequest) {
               stream: true,
             });
           } catch (err: any) {
-            if ((err?.status === 413 || err?.status === 429) && process.env.GROQ_API_KEY) {
-              console.warn(`[OCR_API] Stage 2: ${textProvider} ${err.status}, fallback to NVIDIA`);
-              const nvidiaTextClient = new OpenAI({
-                apiKey: process.env.OPENAI_API_KEY,
-                baseURL: process.env.NVIDIA_BASE_URL || undefined,
-              });
-              usedModel = process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct';
-              response = await nvidiaTextClient.chat.completions.create({
-                model: usedModel,
-                messages: [
-                  { role: 'system', content: THPT_OCR_SYSTEM_PROMPT },
-                  { role: 'user', content: userContent },
-                ],
-                max_tokens: 8192,
-                temperature: 0.1,
-                stream: true,
-              });
-            } else {
-              throw err;
-            }
+            throw err;
           }
           console.log(`[OCR_API] Stage 2 using: ${usedModel}`);
 

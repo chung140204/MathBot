@@ -48,9 +48,9 @@ interface WeeklyDataItem {
 
 interface ContentStats {
   theory: number;
-  examSets: number;
   practice: number;
   thptExams: number;
+  knowledgeChunks: number;
 }
 
 interface RecentUser {
@@ -488,9 +488,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                   </div>
                 ) : [
                   { label: 'Lý thuyết', count: contentStats?.theory, color: '#059669' },
-                  { label: 'Bộ đề ôn tập', count: contentStats?.examSets, color: '#0891b2' },
                   { label: 'Câu hỏi ôn luyện', count: contentStats?.practice, color: '#f59e0b' },
                   { label: 'Đề thi THPT', count: contentStats?.thptExams, color: '#7c3aed' },
+                  { label: 'Knowledge chunks', count: contentStats?.knowledgeChunks, color: '#0891b2' },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">

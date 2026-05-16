@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
-import { scoreQuestion, THPT_SCORING } from '@/lib/scoring';
+import { scoreQuestion, THPT_SCORING, DEFAULT_SCORING } from '@/lib/scoring';
 import { ExamMode } from '@prisma/client';
 
 /**
@@ -32,10 +32,8 @@ export async function POST(req: Request) {
       where: { id: { in: questionIds } }
     });
 
-    // Scoring config: THPT uses fixed scoring, others use ExamSet or defaults
-    const examSet = isThpt
-      ? { pointPerMC: THPT_SCORING.pointPerMC, pointPerTFItem: THPT_SCORING.pointPerTFItem, pointPerSA: THPT_SCORING.pointPerSA }
-      : (await prisma.examSet.findFirst() || { pointPerMC: 1, pointPerTFItem: 0.25, pointPerSA: 0.5 });
+    // Scoring config: THPT uses fixed scoring, others use defaults
+    const scoringConfig = isThpt ? THPT_SCORING : DEFAULT_SCORING;
 
     let totalScore = 0;
     const answerRecords = [];
@@ -44,7 +42,7 @@ export async function POST(req: Request) {
       const question = questions.find((q: { id: string }) => q.id === answerData.questionId);
       if (!question) continue;
 
-      const score = scoreQuestion(question, answerData, examSet, isThpt ? 'THPT' : undefined);
+      const score = scoreQuestion(question, answerData, scoringConfig, isThpt ? 'THPT' : undefined);
       totalScore += score;
 
       const isCorrect = score > 0;
