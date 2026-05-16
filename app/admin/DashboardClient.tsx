@@ -123,8 +123,11 @@ const MetricCard = ({
         <div className="w-10 h-10 rounded-xl flex items-center justify-center text-[#10b981]" style={{ backgroundColor: iconBg }}>
           <Icon size={20} />
         </div>
-        {trend && (
-          <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${trend === 'up' ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#fee2e2] text-[#991b1b]'}`}>
+        {trend && trendValue && (
+          <div
+            title="So với tuần trước"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold cursor-default ${trend === 'up' ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#fee2e2] text-[#991b1b]'}`}
+          >
             {trend === 'up' ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
             {trendValue}
           </div>
@@ -236,7 +239,10 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       console.error('Error fetching activity:', e); 
     }
     setLoading(prev => ({ ...prev, activity: false }));
+    setLastUpdated(new Date());
   };
+
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -261,10 +267,16 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button 
-              onClick={fetchData} 
+            {lastUpdated && !Object.values(loading).some(v => v) && (
+              <span className="text-[11px] text-[#94a3b8] hidden sm:inline">
+                Cập nhật {lastUpdated.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+            <button
+              onClick={fetchData}
               disabled={Object.values(loading).some(v => v)}
               className="p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-lg transition-colors"
+              title="Làm mới dữ liệu"
             >
               <RefreshCcw size={18} className={Object.values(loading).some(v => v) ? 'animate-spin' : ''} />
             </button>
@@ -279,51 +291,51 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
           {/* Row 1: 4 metric cards */}
-          <div className="grid grid-cols-4 gap-6">
-            <MetricCard 
-              title="Tổng người dùng" 
-              value={stats?.totalUsers || 0} 
-              detail="Tăng trưởng đều đặn"
-              icon={Users} 
-              trend="up" 
-              trendValue={stats?.usersTrend} 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <MetricCard
+              title="Tổng người dùng"
+              value={stats?.totalUsers || 0}
+              detail="So với tuần trước"
+              icon={Users}
+              trend={stats?.usersTrend?.startsWith('-') ? 'down' : 'up'}
+              trendValue={stats?.usersTrend}
               iconBg="#f0fdf9"
               isLoading={loading.stats}
             />
-            <MetricCard 
-              title="Ngân hàng câu hỏi" 
-              value={stats?.totalQuestions || 0} 
+            <MetricCard
+              title="Ngân hàng câu hỏi"
+              value={stats?.totalQuestions || 0}
               detail="Đã duyệt & đang hoạt động"
-              icon={FileCheck} 
-              trend="up" 
-              trendValue={stats?.questionsTrend} 
+              icon={FileCheck}
+              trend="up"
+              trendValue={stats?.questionsTrend}
               iconBg="#e0f2fe"
               isLoading={loading.stats}
             />
-            <MetricCard 
-              title="Lượt thi hôm nay" 
-              value={stats?.examsToday || 0} 
-              detail="Giao dịch thi trực tuyến"
-              icon={BookOpen} 
-              trend="up" 
-              trendValue={stats?.examsTrend} 
+            <MetricCard
+              title="Lượt thi hôm nay"
+              value={stats?.examsToday || 0}
+              detail="Bài thi được hoàn thành hôm nay"
+              icon={BookOpen}
+              trend={stats?.examsTrend?.startsWith('-') ? 'down' : 'up'}
+              trendValue={stats?.examsTrend}
               iconBg="#fef3c7"
               isLoading={loading.stats}
             />
-            <MetricCard 
-              title="AI Chat hôm nay" 
-              value={stats?.aiChatsToday || 0} 
+            <MetricCard
+              title="AI Chat hôm nay"
+              value={stats?.aiChatsToday || 0}
               detail="Tương tác với MathBot"
-              icon={MessageSquare} 
-              trend="up" 
-              trendValue={stats?.aiTrend} 
+              icon={MessageSquare}
+              trend={stats?.aiTrend?.startsWith('-') ? 'down' : 'up'}
+              trendValue={stats?.aiTrend}
               iconBg="#ede9fe"
               isLoading={loading.stats}
             />
           </div>
 
           {/* Row 2: Chart + Quick actions */}
-          <div className="grid grid-cols-[3fr_2fr] gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-4 lg:gap-6">
             <div className="bg-white p-6 rounded-[12px]" style={{ border: '0.5px solid #e2e8f0' }}>
               <SectionHeader title="Tăng trưởng người dùng mới (7 ngày qua)" />
               <div className="h-[200px] flex items-end justify-between gap-4 mt-8 px-2">
@@ -365,39 +377,56 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
 
             <div className="bg-white p-6 rounded-[12px]" style={{ border: '0.5px solid #e2e8f0' }}>
               <SectionHeader title="Thao tác nhanh" />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
                 {[
-                  { label: 'Upload lý thuyết', icon: Upload, href: '/admin/upload?tab=theory', color: '#059669' },
-                  { label: 'Thêm câu hỏi', icon: Plus, href: '/admin/questions/new', color: '#0891b2' },
-                  { label: 'Tạo bộ đề mới', icon: BookOpen, href: '/admin/exams/new', color: '#7c3aed' },
+                  { label: 'Upload lý thuyết', desc: 'Tải nội dung ôn tập theo chủ đề', icon: Upload, href: '/admin/upload', color: '#059669', bg: '#f0fdf9' },
+                  { label: 'Thêm câu hỏi', desc: 'Nhập thủ công hoặc từ Excel', icon: Plus, href: '/admin/upload?tab=manual', color: '#0891b2', bg: '#e0f2fe' },
+                  { label: 'Upload đề thi', desc: 'OCR trích xuất từ ảnh đề', icon: BookOpen, href: '/admin/upload?tab=ocr', color: '#7c3aed', bg: '#ede9fe' },
+                  { label: 'Quản lý người dùng', desc: `${stats?.totalUsers || 0} người dùng trong hệ thống`, icon: Users, href: '/admin/users', color: '#d97706', bg: '#fef3c7' },
                 ].map((item) => (
-                  <Link 
+                  <Link
                     key={item.label}
                     href={item.href}
-                    className="flex flex-col items-center justify-center p-4 rounded-xl border border-dashed border-[#e2e8f0] hover:border-solid hover:border-[#059669]/30 hover:bg-[#f0fdf9] transition-all group"
+                    className="flex items-center gap-3 p-3 rounded-xl border border-[#e2e8f0] hover:border-[#059669]/30 hover:shadow-sm transition-all group"
                   >
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-slate-50 group-hover:bg-white transition-colors">
-                      <item.icon size={20} style={{ color: item.color }} />
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110" style={{ backgroundColor: item.bg }}>
+                      <item.icon size={17} style={{ color: item.color }} />
                     </div>
-                    <span className="text-[#374151] text-[11px] font-medium text-center">{item.label}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-bold text-[#0f172a] group-hover:text-[#059669] transition-colors">{item.label}</p>
+                      <p className="text-[10px] text-[#94a3b8] truncate">{item.desc}</p>
+                    </div>
+                    <ChevronRight size={14} className="text-[#cbd5e1] group-hover:text-[#059669] transition-colors flex-shrink-0" />
                   </Link>
                 ))}
               </div>
               <div className="mt-6 pt-6 border-t border-[#f1f5f9]">
-                 <div className="bg-gradient-to-br from-[#f0fdf9] to-[#e0f2fe] p-4 rounded-xl relative overflow-hidden">
-                    <div className="relative z-10">
-                      <h4 className="text-[#059669] text-[12px] font-bold mb-1">Cần hỗ trợ?</h4>
-                      <p className="text-[#64748b] text-[10px] mb-3">Xem tài liệu hướng dẫn quản trị MathBot</p>
-                      <button className="text-[10px] font-bold text-white bg-[#0f172a] px-3 py-1.5 rounded-lg">Xem tài liệu</button>
+                 <div className="bg-gradient-to-br from-[#f0fdf9] to-[#e0f2fe] p-4 rounded-xl">
+                    <h4 className="text-[#059669] text-[12px] font-bold mb-3">Tổng quan hệ thống</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-[#64748b]">Người dùng</span>
+                        <span className="font-bold text-[#0f172a]">{stats?.totalUsers || 0}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-[#64748b]">Câu hỏi</span>
+                        <span className="font-bold text-[#0f172a]">{stats?.totalQuestions || 0}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px]">
+                        <span className="text-[#64748b]">Lượt thi hôm nay</span>
+                        <span className="font-bold text-[#0f172a]">{stats?.examsToday || 0}</span>
+                      </div>
                     </div>
-                    <BookOpen className="absolute -bottom-4 -right-4 text-[#059669]/5" size={80} />
+                    <Link href="/" target="_blank" className="mt-3 block text-center text-[10px] font-bold text-white bg-[#0f172a] px-3 py-1.5 rounded-lg hover:bg-[#1e293b] transition-colors">
+                      Xem trang học sinh →
+                    </Link>
                  </div>
               </div>
             </div>
           </div>
 
           {/* Row 3: Table + Content status + Activity */}
-          <div className="grid grid-cols-[2fr_1fr_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr] gap-4 lg:gap-6">
             <div className="bg-white p-6 rounded-[12px]" style={{ border: '0.5px solid #e2e8f0' }}>
               <SectionHeader 
                 title="Người dùng mới nhất" 
@@ -416,6 +445,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                   <tbody className="divide-y divide-[#f1f5f9]">
                     {loading.users ? (
                       <tr><td colSpan={4} className="py-8 text-center animate-pulse text-slate-400">Đang tải người dùng...</td></tr>
+                    ) : recentUsers.length === 0 ? (
+                      <tr><td colSpan={4} className="py-8 text-center text-[#94a3b8] text-[12px]">Chưa có người dùng nào</td></tr>
                     ) : recentUsers.map((u: RecentUser) => (
                       <tr key={u.id} className="hover:bg-[#f8fafc] transition-colors">
                         <td className="py-3">

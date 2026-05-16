@@ -2,17 +2,25 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { z } from 'zod';
+
+const profileSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  email: z.string().email().optional(),
+  grade: z.string().max(10).optional().nullable(),
+  targetScore: z.string().max(5).optional().nullable(),
+  image: z.string().url().max(500).optional().nullable(),
+  settings: z.record(z.string(), z.unknown()).optional(),
+});
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  console.log('👤 [Profile API GET] Session:', JSON.stringify(session, null, 2));
 
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session.user as any).id;
-  console.log('👤 [Profile API GET] User ID:', userId);
+  const userId = session.user.id;
 
   try {
     const user = await prisma.user.findUnique({
@@ -33,42 +41,53 @@ export async function GET() {
     }
 
     return NextResponse.json(user);
-  } catch (error) {
-    console.error('Error fetching profile:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions);
-  console.log('👤 [Profile API PATCH] Session:', JSON.stringify(session, null, 2));
 
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session.user as any).id;
-  console.log('👤 [Profile API PATCH] User ID:', userId);
+  const userId = session.user.id;
 
   try {
     const body = await request.json();
-    const { name, email, grade, targetScore, image, settings } = body;
+    const parsed = profileSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Dữ liệu không hợp lệ', details: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const { name, email, grade, targetScore, image, settings } = parsed.data;
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        name,
-        email,
-        grade,
-        targetScore,
-        image,
-        settings: settings || undefined,
+        ...(name !== undefined && { name }),
+        ...(email !== undefined && { email }),
+        ...(grade !== undefined && { grade }),
+        ...(targetScore !== undefined && { targetScore }),
+        ...(image !== undefined && { image }),
+        ...(settings !== undefined && { settings: settings as any }),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        grade: true,
+        targetScore: true,
+        image: true,
+        settings: true,
       },
     });
 
     return NextResponse.json(updatedUser);
-  } catch (error) {
-    console.error('Error updating profile:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

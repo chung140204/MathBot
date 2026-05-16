@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -101,6 +101,11 @@ const TOPIC_LABELS: Record<string, string> = {
 // ─── Components ───────────────────────────────────────────────────────────────
 
 export default function ExamResultPage() {
+  return <Suspense><ExamResultContent /></Suspense>;
+}
+
+function ExamResultContent() {
+  useEffect(() => { document.title = 'Kết quả bài thi | MathBot'; }, []);
   const searchParams = useSearchParams();
   const router = useRouter();
   const attemptId = searchParams.get('attemptId');
@@ -214,10 +219,11 @@ export default function ExamResultPage() {
       }
     ];
 
-    // Mock Time per question (since we don't have real timestamps yet)
+    // Estimated time per question (evenly distributed)
+    const avgTime = attempt.totalQuestions > 0 ? Math.floor(attempt.timeTakenSecs / attempt.totalQuestions) : 0;
     const timeData = attempt.answers.map((_, i) => ({
       name: `Câu ${i + 1}`,
-      time: Math.floor(attempt.timeTakenSecs / attempt.totalQuestions) + (Math.random() > 0.5 ? 5 : -5)
+      time: avgTime,
     }));
 
     return { correct, wrong, skip, timeFormatted, diffData, topicData, timeData, suggestions };
@@ -286,8 +292,12 @@ export default function ExamResultPage() {
            {/* Achievement Badge */}
            <div className="absolute top-6 right-6">
               <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/30 flex items-center gap-2">
-                <span className="text-xl">🏆</span>
-                <span className="font-black uppercase text-xs tracking-widest text-white">Xuất sắc</span>
+                <span className="text-xl">
+                  {attempt.totalQuestions > 0 && (attempt.totalScore / attempt.totalQuestions) >= 0.8 ? '🏆' : (attempt.totalScore / attempt.totalQuestions) >= 0.6 ? '✅' : (attempt.totalScore / attempt.totalQuestions) >= 0.4 ? '📝' : '💪'}
+                </span>
+                <span className="font-black uppercase text-xs tracking-widest text-white">
+                  {attempt.totalQuestions > 0 && (attempt.totalScore / attempt.totalQuestions) >= 0.8 ? 'Xuất sắc' : (attempt.totalScore / attempt.totalQuestions) >= 0.6 ? 'Tốt' : (attempt.totalScore / attempt.totalQuestions) >= 0.4 ? 'Khá' : 'Cần ôn thêm'}
+                </span>
               </div>
            </div>
 

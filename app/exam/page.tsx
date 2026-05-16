@@ -2,6 +2,7 @@
 
 import { useReducer, useEffect, useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import ExamSidebar from '@/components/exam/ExamSidebar';
 import ExamQuestion from '@/components/exam/ExamQuestion';
 import ExamSetupModal from '@/components/exam/ExamSetupModal';
@@ -16,6 +17,7 @@ interface ExamState {
   skipped: Set<string>;
   currentIndex: number;
   timeRemaining: number;
+  initialTimeLimit: number;
   isSubmitting: boolean;
   isFinished: boolean;
   examSessionId: string;
@@ -44,6 +46,7 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
         questions: action.questions,
         examSessionId: action.examSessionId,
         timeRemaining: action.timeRemaining,
+        initialTimeLimit: action.timeRemaining,
         examMode: action.examMode,
         answers: {},
         skipped: new Set<string>(),
@@ -83,6 +86,7 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ExamPage() {
+  useEffect(() => { document.title = 'Làm bài thi | MathBot'; }, []);
   const router = useRouter();
   const [phase, setPhase] = useState<'setup' | 'exam'>('setup');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -95,6 +99,7 @@ export default function ExamPage() {
     skipped: new Set<string>(),
     currentIndex: 0,
     timeRemaining: 0,
+    initialTimeLimit: 0,
     isSubmitting: false,
     isFinished: false,
     examSessionId: '',
@@ -288,9 +293,7 @@ export default function ExamPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           answers: formattedAnswers,
-          timeTakenSecs: (state.timeRemaining > 0)
-            ? Math.max(0, (state.examMode === 'thpt' ? 5400 : state.examMode === 'standard' ? 2700 : 1200) - state.timeRemaining)
-            : 0,
+          timeTakenSecs: Math.max(0, state.initialTimeLimit - state.timeRemaining),
           topics: [...new Set(state.questions.map(q => q.topic))],
           mode: state.examMode.toUpperCase(),
         }),
@@ -303,12 +306,12 @@ export default function ExamPage() {
         dispatch({ type: 'SUBMIT_DONE' });
         router.push(`/exam/result?attemptId=${data.id || data.attemptId}`);
       } else {
-        alert('Nộp bài thất bại. Vui lòng thử lại!');
+        toast.error('Nộp bài thất bại. Vui lòng thử lại!');
         dispatch({ type: 'SUBMIT_DONE' });
       }
     } catch (error) {
       console.error('Submit error:', error);
-      alert('Lỗi kết nối server!');
+      toast.error('Lỗi kết nối server!');
       dispatch({ type: 'SUBMIT_DONE' });
     }
   };
@@ -395,14 +398,26 @@ export default function ExamPage() {
           </div>
 
           <div className="flex items-center gap-4">
-             <div className="flex flex-col items-end">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Tiến độ tổng quát</span>
-                <span className="text-sm font-black text-slate-900">
-                  {state.questions.length > 0
-                    ? Math.round((Object.keys(state.answers).length / state.questions.length) * 100)
-                    : 0}%
-                </span>
+             <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-emerald-700">{Object.keys(state.answers).length}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  <span className="text-amber-600">{state.skipped?.size ?? 0}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-slate-200" />
+                  <span className="text-slate-500">{Math.max(0, state.questions.length - Object.keys(state.answers).length - (state.skipped?.size ?? 0))}</span>
+                </div>
              </div>
+             <div className="h-4 w-px bg-slate-200" />
+             <span className="text-sm font-black text-slate-900">
+               {state.questions.length > 0
+                 ? Math.round((Object.keys(state.answers).length / state.questions.length) * 100)
+                 : 0}%
+             </span>
           </div>
         </header>
 

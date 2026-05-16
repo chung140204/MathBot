@@ -6,7 +6,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, email, password } = body;
-    console.log('Registration Fields Recieved:', { name, email, password });
 
     // 1. Validation
     if (!name || !email || !password) {
@@ -23,10 +22,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Kết nối trực tiếp bằng Neon HTTP (không qua Prisma)
+    // Password complexity: at least 1 uppercase + 1 number
+    if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return NextResponse.json(
+        { error: 'Mật khẩu phải có ít nhất 1 chữ in hoa và 1 chữ số.', code: 'VALIDATION_ERROR' },
+        { status: 400 }
+      );
+    }
+
     const dbUrl = process.env.DATABASE_URL;
-    console.log('🔍 [Register] URL first 50 chars:', dbUrl?.substring(0, 50));
-    
     if (!dbUrl) {
       throw new Error('DATABASE_URL is missing');
     }
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Check if user already exists
     const existing = await sql`SELECT id FROM users WHERE email = ${email} LIMIT 1`;
-    
+
     if (existing.length > 0) {
       return NextResponse.json(
         { error: 'Email này đã được sử dụng.', code: 'AUTH_EMAIL_TAKEN' },
@@ -46,8 +50,8 @@ export async function POST(req: NextRequest) {
     // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // 4. Create user (sử dụng cuid-like ID)
-    const id = crypto.randomUUID().replace(/-/g, '').substring(0, 25);
+    // 4. Create user
+    const id = crypto.randomUUID().replace(/-/g, '');
     const now = new Date();
 
     const result = await sql`
@@ -56,14 +60,11 @@ export async function POST(req: NextRequest) {
       RETURNING id, name, email, "createdAt"
     `;
 
-    console.log('✅ User created:', result[0]);
-
     return NextResponse.json(
       { message: 'Tạo tài khoản thành công!', user: result[0] },
       { status: 201 }
     );
-  } catch (error) {
-    console.error('Registration Error:', error);
+  } catch {
     return NextResponse.json(
       { error: 'Đã xảy ra lỗi trong quá trình đăng ký.', code: 'INTERNAL_SERVER_ERROR' },
       { status: 500 }

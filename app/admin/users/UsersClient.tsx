@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import AdminSidebar from '@/components/AdminSidebar';
 import {
   Users,
@@ -204,12 +205,12 @@ export default function UsersClient({ user }: Props) {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Lỗi cập nhật');
+        toast.error(data.error || 'Lỗi cập nhật');
         return;
       }
       setModal(null);
       fetchUsers();
-    } catch { alert('Lỗi kết nối'); } finally { setModalLoading(false); }
+    } catch { toast.error('Lỗi kết nối'); } finally { setModalLoading(false); }
   };
 
   const handleDelete = async () => {
@@ -223,12 +224,12 @@ export default function UsersClient({ user }: Props) {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Lỗi xóa');
+        toast.error(data.error || 'Lỗi xóa');
         return;
       }
       setModal(null);
       fetchUsers();
-    } catch { alert('Lỗi kết nối'); } finally { setModalLoading(false); }
+    } catch { toast.error('Lỗi kết nối'); } finally { setModalLoading(false); }
   };
 
   const handleToggleLock = async () => {
@@ -243,12 +244,12 @@ export default function UsersClient({ user }: Props) {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Lỗi cập nhật');
+        toast.error(data.error || 'Lỗi cập nhật');
         return;
       }
       setModal(null);
       fetchUsers();
-    } catch { alert('Lỗi kết nối'); } finally { setModalLoading(false); }
+    } catch { toast.error('Lỗi kết nối'); } finally { setModalLoading(false); }
   };
 
   const startItem = (page - 1) * LIMIT + 1;
@@ -332,8 +333,8 @@ export default function UsersClient({ user }: Props) {
           </div>
 
           {/* Table */}
-          <div className="bg-white rounded-[12px] overflow-hidden" style={{ border: '0.5px solid #e2e8f0' }}>
-            <table className="w-full">
+          <div className="bg-white rounded-[12px] overflow-hidden overflow-x-auto" style={{ border: '0.5px solid #e2e8f0' }}>
+            <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-[#e2e8f0] bg-[#f8fafc]">
                   <th className="text-left px-4 py-3 text-[11px] font-bold text-[#64748b] uppercase tracking-wider">Người dùng</th>
@@ -427,22 +428,22 @@ export default function UsersClient({ user }: Props) {
                 </p>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                    className="w-8 h-8 rounded-lg border border-[#e2e8f0] flex items-center justify-center hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                    <ChevronLeft size={14} className="text-[#64748b]" />
+                    className="w-10 h-10 rounded-lg border border-[#e2e8f0] flex items-center justify-center hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} className="text-[#64748b]" />
                   </button>
                   {pageNumbers.map((item, i) =>
                     item === 'dots' ? (
-                      <span key={`d${i}`} className="w-8 h-8 flex items-center justify-center text-[12px] text-[#94a3b8]">...</span>
+                      <span key={`d${i}`} className="w-10 h-10 flex items-center justify-center text-[12px] text-[#94a3b8]">...</span>
                     ) : (
                       <button key={item} onClick={() => setPage(item as number)}
-                        className={`w-8 h-8 rounded-lg text-[12px] font-semibold flex items-center justify-center transition-colors ${page === item ? 'bg-[#059669] text-white' : 'border border-[#e2e8f0] text-[#374151] hover:bg-white'}`}>
+                        className={`w-10 h-10 rounded-lg text-[12px] font-semibold flex items-center justify-center transition-colors ${page === item ? 'bg-[#059669] text-white' : 'border border-[#e2e8f0] text-[#374151] hover:bg-white'}`}>
                         {item}
                       </button>
                     )
                   )}
                   <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                    className="w-8 h-8 rounded-lg border border-[#e2e8f0] flex items-center justify-center hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                    <ChevronRight size={14} className="text-[#64748b]" />
+                    className="w-10 h-10 rounded-lg border border-[#e2e8f0] flex items-center justify-center hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    <ChevronRight size={16} className="text-[#64748b]" />
                   </button>
                 </div>
               </div>
@@ -468,7 +469,7 @@ export default function UsersClient({ user }: Props) {
       )}
       {modal?.type === 'delete' && (
         <ConfirmModal open danger title="Xóa người dùng"
-          message={`Bạn có chắc muốn xóa "${modal.user.name || modal.user.email}"? Hành động này không thể hoàn tác. Tất cả dữ liệu liên quan sẽ bị xóa vĩnh viễn.`}
+          message={`Bạn có chắc muốn xóa "${modal.user.name || modal.user.email}"?\n\nDữ liệu bị xóa vĩnh viễn:\n• Lịch sử thi và kết quả\n• Cuộc hội thoại AI\n• Tiến trình ôn tập\n• Bài đã lưu\n\nHành động này không thể hoàn tác.`}
           confirmLabel="Xóa" loading={modalLoading} onConfirm={handleDelete} onCancel={() => !modalLoading && setModal(null)} />
       )}
     </>

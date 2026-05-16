@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Prevent webpack from bundling native Node.js modules used in API routes
+  output: 'standalone',
   serverExternalPackages: ['onnxruntime-node', 'sharp'],
 };
 

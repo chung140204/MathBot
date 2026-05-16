@@ -66,6 +66,6 @@ export async function GET(request: Request) {
     return NextResponse.json(activities);
   } catch (error: unknown) {
     console.error("[Activity API] General error:", error);
-    return NextResponse.json([]);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

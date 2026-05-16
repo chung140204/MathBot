@@ -147,8 +147,8 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const imageFiles = formData.getAll('images') as File[];
-    const examYear = (formData.get('examYear') as string) || '';
-    const examCode = (formData.get('examCode') as string) || '';
+    const examYear = ((formData.get('examYear') as string) || '').replace(/[^0-9]/g, '').slice(0, 4);
+    const examCode = ((formData.get('examCode') as string) || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
 
     if (!imageFiles.length) {
       return NextResponse.json({ error: 'No images provided' }, { status: 400 });
@@ -194,15 +194,24 @@ export async function POST(req: NextRequest) {
       ? (process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash')
       : (process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct');
 
-    // Stage 2 Text: keep NVIDIA (no vision needed)
-    const textClient = new OpenAI({
+    // NVIDIA Vision fallback (used when Gemini returns 429/503)
+    const nvidiaVisionClient = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       baseURL: process.env.NVIDIA_BASE_URL || undefined,
     });
-    const textModel = process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct';
+    const nvidiaVisionModel = process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct';
+
+    // Stage 2 Text: Groq if available, else NVIDIA
+    const textClient = process.env.GROQ_API_KEY
+      ? new OpenAI({ apiKey: process.env.GROQ_API_KEY, baseURL: 'https://api.groq.com/openai/v1' })
+      : new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.NVIDIA_BASE_URL || undefined });
+    const textModel = process.env.GROQ_API_KEY
+      ? (process.env.GROQ_MODEL || 'llama-3.3-70b-versatile')
+      : (process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct');
+    const textProvider = process.env.GROQ_API_KEY ? 'Groq' : 'NVIDIA';
 
     console.log(`[OCR_API] Stage 1 vision: ${visionModel} (${process.env.GEMINI_API_KEY ? 'Gemini' : 'NVIDIA'})`);
-    console.log(`[OCR_API] Stage 2 text:   ${textModel} (NVIDIA)`);
+    console.log(`[OCR_API] Stage 2 text:   ${textModel} (${textProvider})`);
 
     const examLabel = [
       examYear ? `năm ${examYear}` : '',
@@ -240,22 +249,40 @@ export async function POST(req: NextRequest) {
 
           const pageTextResults = await Promise.allSettled(
             base64Images.map(async (img, i) => {
-              const res = await visionClient.chat.completions.create({
-                model: visionModel,
-                messages: [
-                  { role: 'system', content: THPT_PAGE_EXTRACTION_PROMPT },
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: `This is page ${i + 1} of ${total} from a Vietnamese math exam. Transcribe ALL visible Vietnamese math content from this image exactly as written. Output ONLY what you see in this specific image.\n\nREMINDER: You MUST end your output with the __positions__ JSON line as specified in the system prompt.` },
-                      { type: 'image_url', image_url: { url: `data:${img.type};base64,${img.data}` } },
-                    ],
-                  },
-                ],
-                max_tokens: 4096,
-                temperature: 0,
-                stream: false,
-              });
+              const pageMessages = [
+                { role: 'system' as const, content: THPT_PAGE_EXTRACTION_PROMPT },
+                {
+                  role: 'user' as const,
+                  content: [
+                    { type: 'text' as const, text: `This is page ${i + 1} of ${total} from a Vietnamese math exam. Transcribe ALL visible Vietnamese math content from this image exactly as written. Output ONLY what you see in this specific image.\n\nREMINDER: You MUST end your output with the __positions__ JSON line as specified in the system prompt.` },
+                    { type: 'image_url' as const, image_url: { url: `data:${img.type};base64,${img.data}` } },
+                  ],
+                },
+              ];
+
+              let res: Awaited<ReturnType<typeof visionClient.chat.completions.create>>;
+              try {
+                res = await visionClient.chat.completions.create({
+                  model: visionModel,
+                  messages: pageMessages,
+                  max_tokens: 4096,
+                  temperature: 0,
+                  stream: false,
+                });
+              } catch (err: any) {
+                if ((err?.status === 429 || err?.status === 503) && process.env.GEMINI_API_KEY) {
+                  console.warn(`[OCR_API] Page ${i + 1}: Gemini ${err.status}, fallback to NVIDIA Vision`);
+                  res = await nvidiaVisionClient.chat.completions.create({
+                    model: nvidiaVisionModel,
+                    messages: pageMessages,
+                    max_tokens: 4096,
+                    temperature: 0,
+                    stream: false,
+                  });
+                } else {
+                  throw err;
+                }
+              }
               const text = res.choices[0]?.message?.content ?? '';
               console.log(`[OCR_API] Page ${i + 1} extracted: ${text.length} chars`);
               // Detect hallucination: if model outputs mostly ASCII (no Vietnamese diacritics and no LaTeX)
@@ -434,16 +461,43 @@ export async function POST(req: NextRequest) {
             ? `Đề thi THPT ${examLabel}.\n\nNội dung đề thi:\n${combinedText}`
             : `Nội dung đề thi:\n${combinedText}`;
 
-          const response = await textClient.chat.completions.create({
-            model: textModel,
-            messages: [
-              { role: 'system', content: THPT_OCR_SYSTEM_PROMPT },
-              { role: 'user', content: userContent },
-            ],
-            max_tokens: 8192,
-            temperature: 0.1,
-            stream: true,
-          });
+          // Try primary text client (Groq), fallback to NVIDIA on rate limit
+          let response;
+          let usedModel = textModel;
+          try {
+            response = await textClient.chat.completions.create({
+              model: textModel,
+              messages: [
+                { role: 'system', content: THPT_OCR_SYSTEM_PROMPT },
+                { role: 'user', content: userContent },
+              ],
+              max_tokens: 8192,
+              temperature: 0.1,
+              stream: true,
+            });
+          } catch (err: any) {
+            if ((err?.status === 413 || err?.status === 429) && process.env.GROQ_API_KEY) {
+              console.warn(`[OCR_API] Stage 2: ${textProvider} ${err.status}, fallback to NVIDIA`);
+              const nvidiaTextClient = new OpenAI({
+                apiKey: process.env.OPENAI_API_KEY,
+                baseURL: process.env.NVIDIA_BASE_URL || undefined,
+              });
+              usedModel = process.env.NVIDIA_TEXT_MODEL || 'meta/llama-3.1-70b-instruct';
+              response = await nvidiaTextClient.chat.completions.create({
+                model: usedModel,
+                messages: [
+                  { role: 'system', content: THPT_OCR_SYSTEM_PROMPT },
+                  { role: 'user', content: userContent },
+                ],
+                max_tokens: 8192,
+                temperature: 0.1,
+                stream: true,
+              });
+            } else {
+              throw err;
+            }
+          }
+          console.log(`[OCR_API] Stage 2 using: ${usedModel}`);
 
           let buffer = '';
           let questionCount = 0;

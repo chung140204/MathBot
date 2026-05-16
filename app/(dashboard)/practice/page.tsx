@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import { TOPICS as CENTRAL_TOPICS } from '@/lib/constants/topics';
 
 const TOPICS = CENTRAL_TOPICS.map(t => ({ key: t.id, label: t.label }));
@@ -58,6 +59,7 @@ const EXAM_MODES = [
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function PracticePage() {
+  useEffect(() => { document.title = 'Luyện tập | MathBot'; }, []);
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -66,8 +68,29 @@ export default function PracticePage() {
   const [difficulty, setDifficulty] = useState<Difficulty>('all');
   const [starting, setStarting] = useState(false);
 
+  // ─── Daily suggestions ──────────────────────────────────────────────────
+  const [suggestions, setSuggestions] = useState<
+    { topic: string; label: string; reason: string; icon: string; accent: string; difficulty: string }[] | null
+  >(null);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/v1/suggestions/daily')
+      .then((r) => r.json())
+      .then((d) => {
+        setSuggestions(d.suggestions ?? []);
+        if (typeof d.currentStreak === 'number') setStreak(d.currentStreak);
+      })
+      .catch(() =>
+        setSuggestions([
+          { topic: 'FUNCTIONS', label: 'Khảo sát hàm số', reason: 'Chủ đề trọng tâm thi THPT', icon: '📈', accent: '#d97706', difficulty: 'RECOGNITION' },
+          { topic: 'DERIVATIVES', label: 'Đạo hàm', reason: 'Chủ đề trọng tâm thi THPT', icon: '📐', accent: '#059669', difficulty: 'RECOGNITION' },
+          { topic: 'PROBABILITY', label: 'Xác suất – Tổ hợp', reason: 'Chủ đề trọng tâm thi THPT', icon: '🎲', accent: '#dc2626', difficulty: 'RECOGNITION' },
+        ]),
+      );
+  }, []);
+
   const currentMode = EXAM_MODES.find((m) => m.key === mode)!;
-  const streak = 7;
 
   function toggleTopic(key: string) {
     if (mode === 'quick') {
@@ -126,7 +149,7 @@ export default function PracticePage() {
   function handleCustomStart() {
     // Validate: quick mode needs exactly 1 topic
     if (mode === 'quick' && selectedTopics.length === 0) {
-      alert('Vui lòng chọn 1 chủ đề cho chế độ Thi nhanh.');
+      toast.error('Vui lòng chọn 1 chủ đề cho chế độ Thi nhanh.');
       return;
     }
     setStarting(true);
@@ -290,7 +313,7 @@ export default function PracticePage() {
         <section id="custom-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-black text-gray-900">Tùy chỉnh nhanh</h2>
-            <span className="text-xs text-gray-400 font-medium">
+            <span className="text-xs text-gray-500 font-medium">
               {mode === 'quick'
                 ? 'Chọn 1 chủ đề để luyện tập'
                 : 'Bỏ qua để thi ngẫu nhiên tất cả chủ đề'}
@@ -321,7 +344,7 @@ export default function PracticePage() {
                   <span className="text-gray-300">·</span>
                   <button
                     onClick={clearTopics}
-                    className="text-[11px] font-bold text-gray-400 hover:text-red-500 hover:underline"
+                    className="text-[11px] font-bold text-gray-500 hover:text-red-500 hover:underline"
                   >
                     Xóa
                   </button>
@@ -330,7 +353,7 @@ export default function PracticePage() {
               {mode === 'quick' && selectedTopics.length > 0 && (
                 <button
                   onClick={clearTopics}
-                  className="text-[11px] font-bold text-gray-400 hover:text-red-500 hover:underline"
+                  className="text-[11px] font-bold text-gray-500 hover:text-red-500 hover:underline"
                 >
                   Bỏ chọn
                 </button>
@@ -422,62 +445,59 @@ export default function PracticePage() {
       <section>
         <h2 className="text-base font-black text-gray-900 mb-4">Gợi ý ôn tập hôm nay</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {[
-            {
-              topic: 'DERIVATIVES',
-              label: 'Đạo hàm',
-              reason: 'Chủ đề trọng tâm thi THPT',
-              icon: '📐',
-              accent: '#059669',
-            },
-            {
-              topic: 'PROBABILITY',
-              label: 'Xác suất - Tổ hợp',
-              reason: 'Điểm yếu cần cải thiện',
-              icon: '🎲',
-              accent: '#dc2626',
-            },
-            {
-              topic: 'EXPONENTIAL_LOG',
-              label: 'Hàm số mũ - Logarit',
-              reason: 'Ôn lại kiến thức cơ bản',
-              icon: '🔢',
-              accent: '#d97706',
-            },
-          ].map((item) => (
-            <button
-              key={item.topic}
-              onClick={() => {
-                handleModeChange('quick');
-                setSelectedTopics([item.topic]);
-                document
-                  .getElementById('custom-section')
-                  ?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left group"
-            >
+          {suggestions === null ? (
+            // Skeleton loading
+            Array.from({ length: 3 }).map((_, i) => (
               <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                style={{ backgroundColor: `${item.accent}12` }}
+                key={i}
+                className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm animate-pulse"
               >
-                {item.icon}
+                <div className="w-11 h-11 rounded-xl bg-gray-100 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-100 rounded w-2/3" />
+                  <div className="h-3 bg-gray-50 rounded w-full" />
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-sm font-black text-gray-800 group-hover:text-[#059669] transition-colors">
-                  {item.label}
-                </p>
-                <p className="text-[11px] text-gray-400 font-medium">{item.reason}</p>
-              </div>
-              <svg
-                className="w-4 h-4 text-gray-300 group-hover:text-[#059669] group-hover:translate-x-0.5 transition-all ml-auto flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            ))
+          ) : (
+            suggestions.map((item) => (
+              <button
+                key={item.topic}
+                onClick={() => {
+                  handleModeChange('quick');
+                  setSelectedTopics([item.topic]);
+                  if (item.difficulty !== 'RECOGNITION') {
+                    setDifficulty(item.difficulty as Difficulty);
+                  }
+                  document
+                    .getElementById('custom-section')
+                    ?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all text-left group"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ))}
+                <div
+                  className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                  style={{ backgroundColor: `${item.accent}12` }}
+                >
+                  {item.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-gray-800 group-hover:text-[#059669] transition-colors">
+                    {item.label}
+                  </p>
+                  <p className="text-[11px] text-gray-500 font-medium">{item.reason}</p>
+                </div>
+                <svg
+                  className="w-4 h-4 text-gray-300 group-hover:text-[#059669] group-hover:translate-x-0.5 transition-all ml-auto flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ))
+          )}
         </div>
       </section>
     </div>

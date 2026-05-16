@@ -18,18 +18,36 @@ export function detectFollowUp(query: string): boolean {
   return false;
 }
 
+const geminiClient = process.env.GEMINI_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    })
+  : null;
+
+const groqClient = process.env.GROQ_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null;
+
+const nvidiaClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.NVIDIA_BASE_URL || undefined,
+});
+
 async function llmRewrite(
   query: string,
   history: Array<{ role: string; content: string }>,
   signal?: AbortSignal,
 ): Promise<string> {
-  const client = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.NVIDIA_BASE_URL || undefined,
-  });
-
-  const model =
-    process.env.NVIDIA_FAST_MODEL || process.env.NVIDIA_MODEL || 'gpt-4o';
+  const client = geminiClient ?? groqClient ?? nvidiaClient;
+  const model = geminiClient
+    ? 'gemini-2.5-flash'
+    : groqClient
+    ? (process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant')
+    : (process.env.NVIDIA_FAST_MODEL || process.env.NVIDIA_MODEL || 'gpt-4o');
 
   const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
     {

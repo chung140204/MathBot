@@ -7,7 +7,7 @@
  */
 
 import * as dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env' });
 
 // Will be loaded dynamically in main()
 let classifyTopic: any;

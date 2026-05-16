@@ -6,7 +6,7 @@ import { AppError, ErrorCode } from '@/lib/errors';
 
 export async function GET(
   request: Request,
-  { params }: { params: { attemptId: string } }
+  { params }: { params: Promise<{ attemptId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,8 +17,8 @@ export async function GET(
       );
     }
 
-    const { attemptId } = params;
-    const userId = (session.user as any).id;
+    const { attemptId } = await params;
+    const userId = session.user.id;
 
     const attempt = await prisma.examAttempt.findUnique({
       where: { id: attemptId },
@@ -70,17 +70,17 @@ export async function GET(
       label: topic.replace(/_/g, ' '), // Placeholder label conversion
       correct: stats.correct,
       total: stats.total,
-      accuracy: Math.round((stats.score / stats.total) * 100)
+      accuracy: stats.total > 0 ? Math.round((stats.score / stats.total) * 100) : 0
     }));
 
     return NextResponse.json({
       attemptId: attempt.id,
       totalScore: attempt.totalScore,
       totalQuestions: attempt.totalQuestions,
-      percentage: Math.round((attempt.totalScore / attempt.totalQuestions) * 100),
+      percentage: attempt.totalQuestions > 0 ? Math.round((attempt.totalScore / attempt.totalQuestions) * 100) : 0,
       timeTakenSecs: attempt.timeTakenSecs,
-      examTitle: 'Bài thi tổng hợp', // Or fetch from an ExamSet if linked
-      previousAttempt: previousAttempt ? { percentage: Math.round((previousAttempt.totalScore / previousAttempt.totalQuestions) * 100) } : null,
+      examTitle: 'Bài thi tổng hợp',
+      previousAttempt: previousAttempt && previousAttempt.totalQuestions > 0 ? { percentage: Math.round((previousAttempt.totalScore / previousAttempt.totalQuestions) * 100) } : null,
       topicStats: formattedTopicStats,
       results: attempt.answers.map((ans: any, idx) => ({
         questionId: ans.questionId,

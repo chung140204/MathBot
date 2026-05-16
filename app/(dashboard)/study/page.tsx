@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
@@ -20,8 +20,6 @@ const COLOR_MAP = {
 };
 
 
-import { Suspense } from 'react';
-
 function StudyContent() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
@@ -38,6 +36,7 @@ function StudyContent() {
   const [loading, setLoading] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [pendingAiQuestion, setPendingAiQuestion] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -102,11 +101,9 @@ function StudyContent() {
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     fetchProgress();
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/v1/analytics/overview')
+    fetch('/api/v1/analytics/overview', { signal: controller.signal })
       .then(async res => {
         if (!res.ok) throw new Error(`API error ${res.status}`);
         return res.json();
@@ -114,7 +111,10 @@ function StudyContent() {
       .then(data => {
         if (data?.topicStats) setTopicStats(data.topicStats);
       })
-      .catch(err => console.error('Analytics fetch failed:', err));
+      .catch(err => {
+        if (err.name !== 'AbortError') console.error('Analytics fetch failed:', err);
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -294,11 +294,17 @@ function StudyContent() {
                         
                         {/* Action buttons inside card */}
                         <div className="mt-4 flex items-center gap-3">
-                          <button className="flex items-center gap-2 px-3 py-2 bg-[#f0fdf9] text-[#059669] text-[13px] font-bold rounded-xl border border-[#d1fae5] hover:bg-[#d1fae5] transition-colors">
+                          <button
+                            onClick={() => setPendingAiQuestion(`Giải thích chi tiết về: ${chunk.title || `Phần ${idx + 1}`}`)}
+                            className="flex items-center gap-2 px-3 py-2 bg-[#f0fdf9] text-[#059669] text-[13px] font-bold rounded-xl border border-[#d1fae5] hover:bg-[#d1fae5] transition-colors"
+                          >
                             🤖 Hỏi AI giải thích thêm
                           </button>
-                          <button className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 text-[13px] font-bold rounded-xl hover:bg-slate-100 transition-colors">
-                            Tại sao (eˣ)&apos; = eˣ?
+                          <button
+                            onClick={() => setPendingAiQuestion(`Cho ví dụ bài tập về: ${chunk.title || activeSubSectionLabel}`)}
+                            className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 text-[13px] font-bold rounded-xl hover:bg-slate-100 transition-colors"
+                          >
+                            📝 Cho bài tập ví dụ
                           </button>
                         </div>
                       </div>
@@ -325,9 +331,11 @@ function StudyContent() {
         </div>
         
         <div className="flex-1 overflow-hidden relative bg-white">
-           <StudyChatPanel 
-              topicContext={selectedTopic} 
+           <StudyChatPanel
+              topicContext={selectedTopic}
               topicLabel={selectedTopicLabel}
+              pendingQuestion={pendingAiQuestion}
+              onQuestionConsumed={() => setPendingAiQuestion('')}
            />
         </div>
       </div>

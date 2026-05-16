@@ -98,8 +98,7 @@ function NavLink({ href, label, icon, collapsed }: { href: string; label: string
   return (
     <Link
       href={href}
-      title={collapsed ? label : undefined}
-      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all group ${
+      className={`relative flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all group ${
         active
           ? 'bg-gradient-to-r from-[#d1fae5] to-[#e0f2fe] text-[#059669]'
           : 'text-gray-500 hover:bg-[#f0fdf9] hover:text-[#059669]'
@@ -109,6 +108,11 @@ function NavLink({ href, label, icon, collapsed }: { href: string; label: string
         {icon}
       </div>
       {!collapsed && label}
+      {collapsed && (
+        <span className="absolute left-full ml-2 px-2.5 py-1 bg-gray-800 text-white text-xs font-medium rounded-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+          {label}
+        </span>
+      )}
     </Link>
   );
 }
@@ -202,8 +206,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [realStats, setRealStats] = useState<Record<string, number> | null>(null);
   const [isTopicsOpen, setIsTopicsOpen] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -267,9 +277,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen bg-[#f0fdf9] font-sans overflow-hidden">
-      <aside className={`${isCollapsed ? 'w-[72px]' : 'w-[280px]'} flex-shrink-0 bg-white border-r border-gray-100 flex flex-col shadow-sm transition-all duration-300 ease-in-out`}>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 md:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      <aside className={`
+        ${isCollapsed ? 'md:w-[72px]' : 'md:w-[280px]'}
+        fixed inset-y-0 left-0 z-50 w-[280px]
+        transform transition-transform duration-300 ease-in-out
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:relative md:translate-x-0
+        flex-shrink-0 bg-white border-r border-gray-100 flex flex-col shadow-sm
+      `}>
         <div className={`${isCollapsed ? 'px-2 py-3' : 'px-4 py-4'} border-b border-gray-100 flex items-center justify-between`}>
-          <div className="flex items-center gap-3 min-w-0">
+          <Link href="/dashboard" className="flex items-center gap-3 min-w-0">
             <div className={`relative ${isCollapsed ? 'w-10 h-10' : 'w-16 h-16'} flex-shrink-0 drop-shadow-md transition-all duration-300`}>
               <Image
                 src="/logo.png"
@@ -290,11 +315,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </p>
               </div>
             )}
-          </div>
+          </Link>
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             title={isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
-            className="flex-shrink-0 w-7 h-7 rounded-lg bg-gray-50 hover:bg-[#f0fdf9] hover:text-[#059669] text-gray-400 flex items-center justify-center transition-colors"
+            aria-label={isCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+            className="hidden md:flex flex-shrink-0 w-7 h-7 rounded-lg bg-gray-50 hover:bg-[#f0fdf9] hover:text-[#059669] text-gray-400 items-center justify-center transition-colors"
           >
             <svg className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
@@ -403,7 +429,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto flex flex-col">{children}</main>
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        {/* Mobile header bar */}
+        <div className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+          <button
+            onClick={() => setIsMobileOpen(true)}
+            className="w-9 h-9 rounded-lg bg-gray-50 hover:bg-[#f0fdf9] text-gray-500 flex items-center justify-center"
+            aria-label="Mở menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <p className="text-sm font-bold bg-gradient-to-r from-[#059669] to-[#0ea5e9] bg-clip-text text-transparent">MathBot</p>
+        </div>
+        <div key={pathname} className="animate-page-in flex-1">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

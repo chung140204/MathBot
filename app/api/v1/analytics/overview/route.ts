@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
 
   try {
     // 1. Fetch all attempts for this user with answers and question topics
@@ -75,7 +75,7 @@ export async function GET() {
       topic,
       totalQuestions: stats.totalQuestions,
       correctAnswers: Math.round(stats.correctAnswers * 10) / 10,
-      accuracy: Math.round((stats.correctAnswers / stats.totalQuestions) * 100),
+      accuracy: stats.totalQuestions > 0 ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100) : 0,
     }));
 
     // 4. Weekly scores (over the last 7 days)

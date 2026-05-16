@@ -3,13 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Load .env.local
-const envPath = path.join('d:', 'DATN', 'mathbot', '.env.local');
+// Load .env
+const envPath = path.join('d:', 'DATN', 'mathbot', '.env');
 const envConfig = dotenv.parse(fs.readFileSync(envPath));
 const databaseUrl = envConfig.DATABASE_URL;
 
 if (!databaseUrl) {
-  console.error('DATABASE_URL not found in .env.local');
+  console.error('DATABASE_URL not found in .env');
   process.exit(1);
 }
 

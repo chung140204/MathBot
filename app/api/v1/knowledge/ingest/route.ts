@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { createEmbedding } from '@/lib/rag/embed';
+import { z } from 'zod';
+
+const ingestSchema = z.object({
+  content: z.string().min(10).max(10000),
+  topic: z.string().min(1).max(50),
+  source: z.string().min(1).max(200),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,39 +19,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = session.user as any;
-    if (user.role !== 'ADMIN') {
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden: Admin only' }, { status: 403 });
     }
 
     const body = await req.json();
-    const { content, topic, source } = body;
-
-    if (!content || !topic || !source) {
-      return NextResponse.json(
-        { error: 'content, topic, and source are required' },
-        { status: 400 }
-      );
+    const parsed = ingestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'content, topic, and source are required', details: parsed.error.flatten() }, { status: 400 });
     }
+
+    const { content, topic, source } = parsed.data;
 
     // Generate embedding
     const embedding = await createEmbedding(content);
     const vectorStr = `[${embedding.join(',')}]`;
 
     // Insert with embedding using raw SQL (Prisma doesn't support vector type natively)
-    const result = await prisma.$queryRawUnsafe(
-      `INSERT INTO knowledge_chunks (id, content, topic, source, embedding, "createdAt")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4::vector, NOW())
-       RETURNING id, content, topic, source, "createdAt"`,
-      content,
-      topic,
-      source,
-      vectorStr
+    const result = await prisma.$queryRaw<{ id: string; content: string; topic: string; source: string; createdAt: Date }[]>(
+      Prisma.sql`INSERT INTO knowledge_chunks (id, content, topic, source, embedding, "createdAt")
+       VALUES (gen_random_uuid(), ${content}, ${topic}, ${source}, ${vectorStr}::vector, NOW())
+       RETURNING id, content, topic, source, "createdAt"`
     );
 
-    return NextResponse.json({ success: true, chunk: (result as any[])[0] }, { status: 201 });
-  } catch (error: any) {
-    console.error('[Knowledge Ingest] Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, chunk: result[0] }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

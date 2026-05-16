@@ -45,10 +45,6 @@ export async function POST(req: NextRequest) {
       correctAnswer,
     } = body;
 
-    console.log('Body received:', format, topic);
-    console.log('--- Incoming Manual Question Body ---');
-    console.log(JSON.stringify(body, null, 2));
-
     // Basic validation
     if (!content || !topic || !format) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

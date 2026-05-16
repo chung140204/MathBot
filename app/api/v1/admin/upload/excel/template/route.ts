@@ -27,7 +27,7 @@ function styleHeader(row: ExcelJS.Row) {
   row.commit();
 }
 
-function addDropdown(ws: ExcelJS.Worksheet, col: string, formulae: string[], rows = '2:1000') {
+function addDropdown(ws: any, col: string, formulae: string[], rows = '2:1000') {
   const list = formulae.join(',');
   ws.dataValidations.add(`${col}${rows}`, {
     type: 'list',

@@ -7,6 +7,13 @@ const gemini = process.env.GEMINI_API_KEY
     })
   : null;
 
+const groq = process.env.GROQ_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null;
+
 const nvidia = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.NVIDIA_BASE_URL || undefined,
@@ -26,9 +33,11 @@ export async function generateHypotheticalAnswer(query: string): Promise<string 
   const timeout = setTimeout(() => controller.abort(), 5000);
 
   try {
-    const client = gemini ?? nvidia;
+    const client = gemini ?? groq ?? nvidia;
     const model = gemini
       ? 'gemini-2.5-flash'
+      : groq
+      ? (process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant')
       : (process.env.NVIDIA_MODEL || 'meta/llama-3.1-70b-instruct');
 
     const res = await client.chat.completions.create(

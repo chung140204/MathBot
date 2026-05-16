@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import AdminSidebar from '@/components/AdminSidebar';
 import MathRenderer from '@/components/exam/MathRenderer';
 import {
@@ -343,7 +343,7 @@ export default function UploadClient({ user }: { user: AuthUser }) {
     } catch (error: unknown) {
        console.error(error);
        const message = error instanceof Error ? error.message : 'Validation failed';
-       alert(`Lỗi khi validate file: ${message}`);
+       toast.error(`Lỗi khi validate file: ${message}`);
        setStep(2);
     } finally {
        setIsUploading(false);
@@ -381,7 +381,7 @@ export default function UploadClient({ user }: { user: AuthUser }) {
     } catch (error: unknown) {
        console.error(error);
        const message = error instanceof Error ? error.message : 'Upload failed';
-       alert(`Lỗi khi lưu dữ liệu: ${message}`);
+       toast.error(`Lỗi khi lưu dữ liệu: ${message}`);
        setStep(originalStep);
     } finally {
        setIsUploading(false);
@@ -627,29 +627,29 @@ export default function UploadClient({ user }: { user: AuthUser }) {
           {activeTab === 'excel' && (
             <div className="max-w-5xl mx-auto space-y-6">
               {/* Step indicator */}
-              <div className="bg-white rounded-[12px] p-1 flex items-stretch border border-[#e2e8f0]">
+              <div className="bg-white rounded-[12px] p-1 flex items-stretch border border-[#e2e8f0] overflow-x-auto">
                 {[
                   { s: 1, n: 'Tải template', icon: Download },
-                  { s: 2, n: 'Cấu hình & Upload', icon: Upload },
+                  { s: 2, n: 'Cấu hình', icon: Upload },
                   { s: 3, n: 'Validate', icon: Check },
                   { s: 4, n: 'Xem trước', icon: FileText },
-                  { s: 5, n: 'Hoàn thành', icon: CheckCircle2 },
+                  { s: 5, n: 'Xong', icon: CheckCircle2 },
                 ].map((item, idx) => (
                   <React.Fragment key={item.s}>
-                    <div className={`flex-1 flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-300 ${
-                      step === item.s 
-                        ? 'bg-gradient-to-br from-[#d1fae5] to-[#e0f2fe] text-[#059669]' 
+                    <div className={`flex-1 min-w-0 flex items-center gap-2 px-3 lg:px-6 py-3 rounded-xl transition-all duration-300 ${
+                      step === item.s
+                        ? 'bg-gradient-to-br from-[#d1fae5] to-[#e0f2fe] text-[#059669]'
                         : step > item.s ? 'text-[#059669]' : 'text-[#94a3b8]'
                     }`}>
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold border ${
-                        step === item.s ? 'bg-[#059669] text-white border-transparent' : 
+                      <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[12px] font-bold border ${
+                        step === item.s ? 'bg-[#059669] text-white border-transparent' :
                         step > item.s ? 'bg-[#d1fae5] text-[#059669] border-transparent' : 'bg-transparent border-[#e2e8f0]'
                       }`}>
                         {step > item.s ? <Check size={14} /> : item.s}
                       </div>
-                      <span className="text-[12px] font-bold whitespace-nowrap">{item.n}</span>
+                      <span className="text-[12px] font-bold whitespace-nowrap hidden sm:inline">{item.n}</span>
                     </div>
-                    {idx < 4 && <div className="w-[1px] bg-[#e2e8f0] self-center h-8 my-1 mx-2"></div>}
+                    {idx < 4 && <div className="w-[1px] bg-[#e2e8f0] self-center h-8 my-1 mx-1 lg:mx-2 flex-shrink-0"></div>}
                   </React.Fragment>
                 ))}
               </div>
@@ -912,7 +912,7 @@ export default function UploadClient({ user }: { user: AuthUser }) {
             <div className="max-w-4xl mx-auto space-y-6">
               {/* Header */}
               <div className="bg-white p-6 rounded-2xl border border-[#e2e8f0]">
-                <h2 className="text-[#0f172a] text-[18px] font-bold mb-1">Import Đề THPT Quốc Gia (OCR + AI)</h2>
+                <h2 className="text-[#0f172a] text-[18px] font-bold mb-1">Import Đề THPT Quốc Gia</h2>
                 <p className="text-[#64748b] text-[12px]">Upload ảnh hoặc PDF đề thi → AI tự động nhận diện và trích xuất câu hỏi</p>
               </div>
 
@@ -973,7 +973,7 @@ export default function UploadClient({ user }: { user: AuthUser }) {
                     <div className="flex gap-3">
                       <Info className="text-[#059669] flex-shrink-0" size={18} />
                       <p className="text-[#065f46] text-[12px] leading-relaxed">
-                        <b>Cách hoạt động:</b> AI GPT-4o Vision sẽ đọc ảnh đề thi, nhận diện công thức toán (LaTeX), và trích xuất 22 câu hỏi (12 TN + 4 ĐS + 6 TL). Bạn cần nhập đáp án đúng cho từng câu trước khi lưu.
+                        <b>Lưu ý:</b> Sau khi trích xuất, kiểm tra và nhập đáp án đúng cho từng câu hỏi trước khi lưu vào hệ thống.
                       </p>
                     </div>
                   </div>

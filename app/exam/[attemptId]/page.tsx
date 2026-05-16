@@ -1,6 +1,8 @@
 'use client';
 
 import { useReducer, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import ExamSidebar from '@/components/exam/ExamSidebar';
 import ExamQuestion from '@/components/exam/ExamQuestion';
 
@@ -37,42 +39,8 @@ type ExamAction =
   | { type: 'SUBMIT_START' }
   | { type: 'SUBMIT_DONE' };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_QUESTIONS: Question[] = [
-  {
-    id: 'q1',
-    content: 'Tính đạo hàm của hàm số $f(x) = x^3 - 3x^2 + 2x - 1$.',
-    format: 'MULTIPLE_CHOICE',
-    options: {
-      A: '$3x^2 - 6x + 2$',
-      B: '$3x^2 - 6x - 2$',
-      C: '$x^2 - 6x + 2$',
-      D: '$3x^2 + 6x + 2$',
-    },
-    topic: 'DERIVATIVE',
-    difficulty: 'EASY',
-  },
-  {
-    id: 'q2',
-    content: 'Cho hàm số $f(x) = x^3 - 3x + 2$. Xét tính đúng/sai của các phát biểu sau:',
-    format: 'TRUE_FALSE',
-    statementA: 'Hàm số đồng biến trên khoảng $(2; +\\infty)$.',
-    statementB: 'Hàm số nghịch biến trên khoảng $(-1; 1)$.',
-    statementC: 'Đồ thị hàm số có hai điểm cực trị.',
-    statementD: 'Giá trị cực đại của hàm số bằng $4$.',
-    topic: 'DERIVATIVE',
-    difficulty: 'MEDIUM',
-  },
-  {
-    id: 'q3',
-    content: 'Tìm giá trị nguyên nhỏ nhất của tham số $m$ để hàm số $y = x^3 - 3x^2 + mx - 1$ đồng biến trên $\\mathbb{R}$.',
-    format: 'SHORT_ANSWER',
-    topic: 'DERIVATIVE',
-    difficulty: 'HARD',
-  },
-  // Add more mixed questions if needed
-];
+// Empty initial state — questions loaded from API in main exam flow
+const INITIAL_QUESTIONS: Question[] = [];
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
@@ -110,8 +78,9 @@ function examReducer(state: ExamState, action: ExamAction): ExamState {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ExamPage() {
+  const router = useRouter();
   const [state, dispatch] = useReducer(examReducer, {
-    questions: MOCK_QUESTIONS,
+    questions: INITIAL_QUESTIONS,
     answers: {},
     skipped: new Set<string>(),
     currentIndex: 0,
@@ -173,7 +142,7 @@ export default function ExamPage() {
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         console.error('[exam] Submit error:', errorData);
-        alert('Có lỗi xảy ra khi nộp bài. Vui lòng thử lại.');
+        toast.error('Có lỗi xảy ra khi nộp bài. Vui lòng thử lại.');
         dispatch({ type: 'SUBMIT_DONE' });
         return;
       }
@@ -181,11 +150,10 @@ export default function ExamPage() {
       const result = await res.json();
       dispatch({ type: 'SUBMIT_DONE' });
 
-      // Navigate to results page (will be implemented later)
-      window.location.href = `/exam/${result.attemptId}/results`;
+      router.push(`/exam/result?attemptId=${result.attemptId}`);
     } catch (error) {
       console.error('[exam] Submit error:', error);
-      alert('Không thể kết nối đến server. Vui lòng thử lại.');
+      toast.error('Không thể kết nối đến server. Vui lòng thử lại.');
       dispatch({ type: 'SUBMIT_DONE' });
     }
   }, [state]);

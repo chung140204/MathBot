@@ -18,6 +18,7 @@ export async function GET() {
 
     return NextResponse.json(questionsByTopic);
   } catch (error: unknown) {
-    return NextResponse.json([]);
+    console.error('[Questions by-topic] Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

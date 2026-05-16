@@ -3,8 +3,8 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { neon } from '@neondatabase/serverless';
 
-if (!process.env.NEXTAUTH_SECRET) {
-  console.warn('⚠️ [NextAuth] NEXTAUTH_SECRET is not defined in environment variables');
+if (!process.env.NEXTAUTH_SECRET && process.env.NODE_ENV !== 'production') {
+  console.warn('NEXTAUTH_SECRET is not defined in environment variables.');
 }
 
 export const authOptions: NextAuthOptions = {
@@ -16,24 +16,18 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Mật khẩu', type: 'password' },
       },
       async authorize(credentials) {
-        console.log('🔐 [NextAuth] authorize() called');
-        console.log('🔐 [NextAuth] email:', credentials?.email);
-        
         if (!credentials?.email || !credentials?.password) {
-          console.log('❌ [NextAuth] Missing credentials');
           throw new Error('Vui lòng nhập email và mật khẩu.');
         }
 
         const dbUrl = process.env.DATABASE_URL;
         if (!dbUrl) {
-          console.log('❌ [NextAuth] DATABASE_URL missing');
           throw new Error('DATABASE_URL is missing');
         }
 
         try {
           const sql = neon(dbUrl);
 
-          // Tìm user bằng SQL thuần (bypass Prisma adapter issue)
           const rows = await sql`
             SELECT id, email, name, password, role, "isLocked" as is_locked
             FROM users
@@ -41,23 +35,17 @@ export const authOptions: NextAuthOptions = {
             LIMIT 1
           `;
 
-          console.log('🔐 [NextAuth] Query result rows:', rows.length);
-
           if (rows.length === 0) {
-            console.log('❌ [NextAuth] User not found');
             throw new Error('Email không tồn tại.');
           }
 
           const user = rows[0];
-          console.log('✅ [NextAuth] User found:', user.email, user.id);
 
           if (!user.password) {
-            console.log('❌ [NextAuth] No password stored');
             throw new Error('Tài khoản chưa có mật khẩu.');
           }
 
           const isValid = await bcrypt.compare(credentials.password, user.password);
-          console.log('🔐 [NextAuth] Password valid:', isValid);
 
           if (!isValid) {
             throw new Error('Mật khẩu không chính xác.');
@@ -67,16 +55,13 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
           }
 
-          const result = {
+          return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
           };
-          console.log('✅ [NextAuth] Returning user:', result);
-          return result;
         } catch (err) {
-          console.error('❌ [NextAuth] Error in authorize:', err);
           throw err;
         }
       },
@@ -103,6 +88,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: 'jwt',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

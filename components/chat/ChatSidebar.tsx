@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { toast } from 'react-hot-toast';
 import { isToday, isYesterday, isThisWeek, parseISO } from 'date-fns';
 
 interface Session {
@@ -102,11 +103,11 @@ export default function ChatSidebar({
         }
         fetchSessions();
       } else {
-        alert('Không thể xóa cuộc hội thoại. Vui lòng thử lại.');
+        toast.error('Không thể xóa cuộc hội thoại. Vui lòng thử lại.');
       }
     } catch (error) {
       console.error('Failed to delete session:', error);
-      alert('Lỗi kết nối. Không thể xóa cuộc hội thoại.');
+      toast.error('Lỗi kết nối. Không thể xóa cuộc hội thoại.');
     }
   };
 

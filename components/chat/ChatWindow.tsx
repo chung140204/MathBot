@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import { toast } from 'react-hot-toast';
 import MessageBubble from './MessageBubble';
 import MathInput from './MathInput';
 
@@ -27,10 +28,10 @@ interface ChatWindowProps {
 }
 
 const SUGGESTIONS = [
-  'Tính đạo hàm của f(x) = sin(x²)',
-  'Giải phương trình mũ: 2^x = 8',
-  'Tìm nguyên hàm của ∫x·eˣ dx',
-  'Tính xác suất bài toán tổ hợp',
+  { text: 'Tính đạo hàm của f(x) = sin(x²)', icon: '📐' },
+  { text: 'Giải phương trình mũ: 2^x = 8', icon: '📊' },
+  { text: 'Tìm nguyên hàm của ∫x·eˣ dx', icon: '∫' },
+  { text: 'Tính xác suất bài toán tổ hợp', icon: '🎲' },
 ];
 
 export default function ChatWindow({
@@ -79,8 +80,9 @@ export default function ChatWindow({
       return;
     }
 
+    const controller = new AbortController();
     setIsLoadingHistory(true);
-    fetch(`/api/v1/chat/sessions?sessionId=${sessionId}`)
+    fetch(`/api/v1/chat/sessions?sessionId=${sessionId}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         if (isStreamingRef.current) return;
@@ -96,8 +98,11 @@ export default function ChatWindow({
           setMessages([]);
         }
       })
-      .catch(console.error)
+      .catch((err) => {
+        if (err.name !== 'AbortError') console.error(err);
+      })
       .finally(() => setIsLoadingHistory(false));
+    return () => controller.abort();
   }, [sessionId, isStreaming]);
 
   // Improved Auto-scroll for dynamic content (Math, Images)
@@ -138,7 +143,7 @@ export default function ChatWindow({
 
     // Validate image format before sending
     if (imageBase64 && !imageBase64.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,/)) {
-      alert('Định dạng ảnh không hợp lệ.');
+      toast.error('Định dạng ảnh không hợp lệ.');
       return;
     }
 
@@ -347,15 +352,22 @@ export default function ChatWindow({
               <h2 className="text-xl font-bold mb-1" style={{ color: '#0f172a' }}>
                 Xin chào, {firstName}!
               </h2>
-              <p className="text-sm mb-8" style={{ color: '#475569' }}>
+              <p className="text-sm mb-2" style={{ color: '#475569' }}>
                 Hỏi bất kỳ bài Toán THPT nào — tôi giải từng bước rõ ràng.
               </p>
+              <div className="flex items-center gap-3 mb-8 text-[11px] text-gray-400 font-medium">
+                <span>📸 Gửi ảnh bài toán</span>
+                <span>·</span>
+                <span>📚 Tra cứu tài liệu</span>
+                <span>·</span>
+                <span>🧠 Suy nghĩ từng bước</span>
+              </div>
               <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
                 {SUGGESTIONS.map((s) => (
                   <button
-                    key={s}
-                    onClick={() => sendMessage(s)}
-                    className="text-left text-xs px-3 py-2.5 rounded-xl transition-colors"
+                    key={s.text}
+                    onClick={() => sendMessage(s.text)}
+                    className="text-left text-xs px-3 py-2.5 rounded-xl transition-colors flex items-start gap-2"
                     style={{
                       background: '#fff',
                       border: '0.5px solid #e2e8f0',
@@ -370,28 +382,40 @@ export default function ChatWindow({
                       (e.currentTarget as HTMLButtonElement).style.color = '#475569';
                     }}
                   >
-                    {s}
+                    <span className="flex-shrink-0">{s.icon}</span>
+                    <span>{s.text}</span>
                   </button>
                 ))}
               </div>
             </div>
           ) : (
             <>
-              {messages.map((m, i) => (
-                <MessageBubble
-                  key={i}
-                  message={m}
-                  onEdit={(newContent) => handleEditSubmit(i, newContent)}
-                  onFeedback={m.id ? async (fb) => {
-                    await fetch('/api/v1/chat/feedback', {
-                      method: 'PATCH',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ messageId: m.id, feedback: fb }),
-                    });
-                    setMessages(prev => prev.map((msg, idx) => idx === i ? { ...msg, feedback: fb } : msg));
-                  } : undefined}
-                />
-              ))}
+              {messages.map((m, i) => {
+                const lastAssistantIdx = messages.map((msg, idx) => msg.role === 'assistant' ? idx : -1).filter(x => x >= 0).pop();
+                return (
+                  <MessageBubble
+                    key={i}
+                    message={m}
+                    onEdit={(newContent) => handleEditSubmit(i, newContent)}
+                    onFeedback={m.id ? async (fb) => {
+                      await fetch('/api/v1/chat/feedback', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messageId: m.id, feedback: fb }),
+                      });
+                      setMessages(prev => prev.map((msg, idx) => idx === i ? { ...msg, feedback: fb } : msg));
+                    } : undefined}
+                    isLastAssistant={i === lastAssistantIdx}
+                    onRegenerate={i === lastAssistantIdx ? () => {
+                      const lastUserMsg = [...messages].reverse().find(msg => msg.role === 'user');
+                      if (lastUserMsg) {
+                        setMessages(prev => prev.slice(0, -1));
+                        sendMessage(lastUserMsg.content, undefined, messages.slice(0, -1));
+                      }
+                    } : undefined}
+                  />
+                );
+              })}
               {/* Typing indicator with timer while waiting for response */}
               {isStreaming && !streamingContent && (
                 <div className="flex items-center gap-3 py-4 px-1">

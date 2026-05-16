@@ -8,7 +8,7 @@ interface Message {
   content: string;
 }
 
-export default function StudyChatPanel({ topicContext, topicLabel }: { topicContext: string, topicLabel: string }) {
+export default function StudyChatPanel({ topicContext, topicLabel, pendingQuestion, onQuestionConsumed }: { topicContext: string; topicLabel: string; pendingQuestion?: string; onQuestionConsumed?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -32,6 +32,14 @@ export default function StudyChatPanel({ topicContext, topicLabel }: { topicCont
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-send pending question from study page buttons
+  useEffect(() => {
+    if (pendingQuestion && !isStreaming) {
+      send(pendingQuestion);
+      onQuestionConsumed?.();
+    }
+  }, [pendingQuestion]);
 
   // Reset chat if topic changes
   useEffect(() => {

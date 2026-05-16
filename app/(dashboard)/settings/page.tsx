@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -162,6 +162,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (c: boolean
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  useEffect(() => { document.title = 'Cài đặt | MathBot'; }, []);
   const [activeTab, setActiveTab] = useState<SettingsTab>('account');
 
   const { data: session } = useSession();
@@ -262,10 +263,10 @@ export default function SettingsPage() {
       });
 
       if (!res.ok) throw new Error('Cập nhật thất bại');
-      alert('Đã lưu thay đổi!');
+      toast.success('Đã lưu thay đổi!');
     } catch (err) {
       console.error('Save error:', err);
-      alert('Có lỗi xảy ra khi lưu thay đổi.');
+      toast.error('Có lỗi xảy ra khi lưu thay đổi.');
     } finally {
       setIsSaving(false);
     }
@@ -283,7 +284,7 @@ export default function SettingsPage() {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    alert('Mật khẩu đã được cập nhật!');
+    toast.success('Mật khẩu đã được cập nhật!');
   }
 
   async function handleToggleProvider(id: string) {
@@ -309,12 +310,12 @@ export default function SettingsPage() {
 
   function handleLogout() {
     if (!confirm('Bạn có chắc chắn muốn đăng xuất?')) return;
-    window.location.href = '/api/auth/signout';
+    signOut({ callbackUrl: '/login' });
   }
 
   function handleDeleteAccount() {
     if (!confirm('⚠️ Hành động này không thể hoàn tác!\n\nTất cả dữ liệu học tập, lịch sử thi và cuộc trò chuyện sẽ bị xoá vĩnh viễn.\n\nBạn có chắc chắn?')) return;
-    alert('Chức năng xoá tài khoản sẽ được triển khai sau.');
+    toast('Chức năng xoá tài khoản sẽ được triển khai sau.');
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────

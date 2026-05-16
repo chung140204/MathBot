@@ -25,6 +25,8 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   onEdit?: (newContent: string) => void;
   onFeedback?: (feedback: 'up' | 'down') => void;
+  onRegenerate?: () => void;
+  isLastAssistant?: boolean;
 }
 
 /**
@@ -134,6 +136,40 @@ function normalizeContent(content: string): string {
   return result;
 }
 
+function ImageWithLightbox({ src }: { src: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="my-4 cursor-pointer group" onClick={() => setOpen(true)}>
+        <img
+          src={src}
+          className="max-w-full md:max-w-md rounded-xl border border-gray-200 shadow-sm object-contain max-h-96 transition-transform group-hover:scale-[1.02]"
+          alt="Chat image"
+        />
+        <p className="text-[10px] text-gray-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Click để phóng to</p>
+      </div>
+      {open && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setOpen(false)}
+        >
+          <img
+            src={src}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            alt="Zoomed image"
+          />
+          <button
+            onClick={() => setOpen(false)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white text-xl transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 const MarkdownRenderer = ({ content }: { content: string }) => {
   // Extract base64 image from content before normalizing (to avoid mangling base64 data)
   const imageMatch = content.match(/^!\[.*?\]\((data:image\/[^)]+)\)\n\n?/);
@@ -143,13 +179,7 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
   return (
     <div className="markdown">
       {imageSrc && (
-        <div className="my-4">
-          <img
-            src={imageSrc}
-            className="max-w-full md:max-w-md rounded-xl border border-gray-200 shadow-sm object-contain max-h-96"
-            alt="Chat image"
-          />
-        </div>
+        <ImageWithLightbox src={imageSrc} />
       )}
       {textContent && (
         <ReactMarkdown
@@ -177,7 +207,7 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
   );
 };
 
-export default function MessageBubble({ message, isStreaming = false, onEdit, onFeedback }: MessageBubbleProps) {
+export default function MessageBubble({ message, isStreaming = false, onEdit, onFeedback, onRegenerate, isLastAssistant }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -294,16 +324,22 @@ export default function MessageBubble({ message, isStreaming = false, onEdit, on
               {/* Sources citations */}
               {!isStreaming && message.sources && message.sources.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs text-gray-400 mb-1.5">Nguồn tham khảo:</p>
+                  <p className="text-[11px] text-gray-400 mb-1.5">Nguồn tham khảo:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {message.sources.map((s, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-100"
-                      >
-                        📚 {s.source} · {Math.round(s.similarity * 100)}%
-                      </span>
-                    ))}
+                    {message.sources.map((s, i) => {
+                      const pct = Math.round(s.similarity * 100);
+                      const relevance = pct >= 80 ? 'Rất liên quan' : pct >= 60 ? 'Liên quan' : 'Tham khảo';
+                      return (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 text-[11px] rounded-lg border border-blue-100"
+                          title={`Độ tương đồng: ${pct}%`}
+                        >
+                          📚 {s.source}
+                          <span className="text-blue-400 font-medium">· {relevance}</span>
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -334,6 +370,17 @@ export default function MessageBubble({ message, isStreaming = false, onEdit, on
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </button>
+                {isLastAssistant && onRegenerate && (
+                  <button
+                    className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg transition-colors hover:bg-gray-100"
+                    title="Tạo lại câu trả lời"
+                    onClick={onRegenerate}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                )}
               </div>
             )}
           </div>

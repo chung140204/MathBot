@@ -21,6 +21,18 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const passwordStrength = (() => {
+    if (!password) return 0;
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return score;
+  })();
+  const strengthLabel = ['', 'Yếu', 'Trung bình', 'Khá', 'Mạnh'][passwordStrength] ?? '';
+  const strengthColor = ['bg-gray-200', 'bg-red-400', 'bg-amber-400', 'bg-emerald-400', 'bg-emerald-600'][passwordStrength] ?? 'bg-gray-200';
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -28,7 +40,6 @@ export default function RegisterPage() {
 
     const name = `${firstName} ${lastName}`.trim();
 
-    console.log('Registering with:', { name, email, password });
     try {
       const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
@@ -37,7 +48,7 @@ export default function RegisterPage() {
       });
 
       if (res.ok) {
-        router.push('/login?registered=1');
+        router.push(`/login?registered=1&email=${encodeURIComponent(email)}`);
         return;
       }
 
@@ -239,6 +250,16 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
+              {password && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex gap-1">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i < passwordStrength ? strengthColor : 'bg-gray-200'}`} />
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-500">{strengthLabel} · Nên có chữ hoa, số và ký tự đặc biệt</p>
+                </div>
+              )}
             </div>
 
             <button

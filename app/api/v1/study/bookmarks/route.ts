@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+
+const bookmarkSchema = z.object({
+  topic: z.string().min(1).max(50),
+  subsection: z.string().min(1).max(200),
+});
 
 // GET: Lấy danh sách bookmarks của user
 export async function GET() {
@@ -9,13 +16,13 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const bookmarks = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id, topic, subsection, "createdAt" FROM study_bookmarks WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
-      session.user.id
+    const userId = session.user.id;
+    const bookmarks = await prisma.$queryRaw<{ id: string; topic: string; subsection: string; createdAt: Date }[]>(
+      Prisma.sql`SELECT id, topic, subsection, "createdAt" FROM study_bookmarks WHERE "userId" = ${userId} ORDER BY "createdAt" DESC`
     );
     return NextResponse.json(bookmarks);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -25,33 +32,34 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { topic, subsection } = await req.json();
-    if (!topic || !subsection) {
+    const body = await req.json();
+    const parsed = bookmarkSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json({ error: 'topic and subsection required' }, { status: 400 });
     }
 
+    const { topic, subsection } = parsed.data;
+    const userId = session.user.id;
+
     // Check if already bookmarked
-    const existing = await prisma.$queryRawUnsafe<any[]>(
-      `SELECT id FROM study_bookmarks WHERE "userId" = $1 AND topic = $2 AND subsection = $3`,
-      session.user.id, topic, subsection
+    const existing = await prisma.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT id FROM study_bookmarks WHERE "userId" = ${userId} AND topic = ${topic} AND subsection = ${subsection}`
     );
 
     if (existing.length > 0) {
       // Remove bookmark
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM study_bookmarks WHERE "userId" = $1 AND topic = $2 AND subsection = $3`,
-        session.user.id, topic, subsection
+      await prisma.$executeRaw(
+        Prisma.sql`DELETE FROM study_bookmarks WHERE "userId" = ${userId} AND topic = ${topic} AND subsection = ${subsection}`
       );
       return NextResponse.json({ bookmarked: false });
     } else {
       // Add bookmark
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO study_bookmarks (id, "userId", topic, subsection, "createdAt") VALUES (gen_random_uuid()::text, $1, $2, $3, NOW())`,
-        session.user.id, topic, subsection
+      await prisma.$executeRaw(
+        Prisma.sql`INSERT INTO study_bookmarks (id, "userId", topic, subsection, "createdAt") VALUES (gen_random_uuid()::text, ${userId}, ${topic}, ${subsection}, NOW())`
       );
       return NextResponse.json({ bookmarked: true });
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

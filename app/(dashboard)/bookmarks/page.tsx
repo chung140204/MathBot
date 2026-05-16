@@ -29,6 +29,7 @@ const TOPIC_COLORS: Record<string, { bg: string; text: string; border: string; i
 const DEFAULT_COLOR = { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: 'bg-slate-500' };
 
 export default function BookmarksPage() {
+  useEffect(() => { document.title = 'Bài đã lưu | MathBot'; }, []);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');

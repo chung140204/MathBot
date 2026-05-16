@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import ChatSidebar from '@/components/chat/ChatSidebar';
 import ChatWindow from '@/components/chat/ChatWindow';
 
 export default function ChatPage() {
+  useEffect(() => { document.title = 'AI Chat | MathBot'; }, []);
   const { data: session } = useSession();
   const userId = (session?.user as any)?.id;
   

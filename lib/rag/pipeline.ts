@@ -27,8 +27,22 @@ export async function ragSearch(
   userMessage: string,
   options?: RagSearchOptions,
 ): Promise<RagSearchResult> {
+  // Fast mode: lightweight RAG — skip HyDE and decomposition, return top 2 chunks
   if (options?.mode === 'fast') {
-    return { chunks: [] };
+    try {
+      const topic = classifyTopic(userMessage);
+      const [embedding] = await createEmbeddings([userMessage]);
+      const [vectorResults, keywordResults] = await Promise.all([
+        searchSimilarChunks(embedding, undefined, undefined, topic),
+        searchByKeywords(userMessage, undefined, topic),
+      ]);
+      const chunks = mergeAndRerank([vectorResults], keywordResults, topic, userMessage, 2);
+      console.log(`[RAG] Fast mode: ${chunks.length} chunks`);
+      return { chunks };
+    } catch (error) {
+      console.error('[RAG] Fast mode error, no context:', error);
+      return { chunks: [] };
+    }
   }
 
   try {

@@ -143,6 +143,18 @@ export default function SettingsClient({ user }: Props) {
   const hasChanges = JSON.stringify(settings) !== JSON.stringify(original);
 
   const handleSave = async () => {
+    // Validate before save
+    const temp = parseFloat(settings.ai_temperature || '0');
+    if (isNaN(temp) || temp < 0 || temp > 1) {
+      setError('Temperature phải từ 0 đến 1');
+      return;
+    }
+    const rateLimit = parseInt(settings.ai_rate_limit || '0');
+    if (isNaN(rateLimit) || rateLimit < 1 || rateLimit > 100) {
+      setError('Rate limit phải từ 1 đến 100');
+      return;
+    }
+
     setSaving(true);
     setError('');
     try {
@@ -290,8 +302,18 @@ export default function SettingsClient({ user }: Props) {
                       <p className="text-[13px] font-semibold text-[#374151]">Xóa toàn bộ lịch sử chat</p>
                       <p className="text-[11px] text-[#94a3b8]">Xóa tất cả đoạn chat và tin nhắn của mọi người dùng</p>
                     </div>
-                    <button disabled className="px-3 py-1.5 text-[12px] font-semibold text-[#dc2626] bg-[#fef2f2] border border-[#fecaca] rounded-lg hover:bg-[#fee2e2] transition-colors opacity-50 cursor-not-allowed">
-                      Sắp ra mắt
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Xóa toàn bộ lịch sử chat?\n\nTất cả cuộc hội thoại và tin nhắn sẽ bị xóa vĩnh viễn. Hành động này không thể hoàn tác.')) return;
+                        try {
+                          const res = await fetch('/api/v1/admin/settings', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'clear_chats' }) });
+                          if (res.ok) alert('Đã xóa toàn bộ lịch sử chat.');
+                          else alert('Lỗi khi xóa.');
+                        } catch { alert('Lỗi kết nối.'); }
+                      }}
+                      className="px-3 py-1.5 text-[12px] font-semibold text-[#dc2626] bg-[#fef2f2] border border-[#fecaca] rounded-lg hover:bg-[#fee2e2] transition-colors"
+                    >
+                      Xóa tất cả
                     </button>
                   </div>
                   <div className="flex items-center justify-between">
@@ -299,8 +321,15 @@ export default function SettingsClient({ user }: Props) {
                       <p className="text-[13px] font-semibold text-[#374151]">Reset cài đặt về mặc định</p>
                       <p className="text-[11px] text-[#94a3b8]">Khôi phục tất cả cài đặt về giá trị ban đầu</p>
                     </div>
-                    <button disabled className="px-3 py-1.5 text-[12px] font-semibold text-[#dc2626] bg-[#fef2f2] border border-[#fecaca] rounded-lg hover:bg-[#fee2e2] transition-colors opacity-50 cursor-not-allowed">
-                      Sắp ra mắt
+                    <button
+                      onClick={() => {
+                        if (!confirm('Reset tất cả cài đặt về mặc định?')) return;
+                        setSettings({ ...original });
+                        setSaved(false);
+                      }}
+                      className="px-3 py-1.5 text-[12px] font-semibold text-[#dc2626] bg-[#fef2f2] border border-[#fecaca] rounded-lg hover:bg-[#fee2e2] transition-colors"
+                    >
+                      Reset
                     </button>
                   </div>
                 </div>

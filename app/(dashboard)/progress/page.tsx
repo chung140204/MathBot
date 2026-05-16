@@ -306,6 +306,7 @@ function StreakCalendar({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ProgressPage() {
+  useEffect(() => { document.title = 'Tiến trình | MathBot'; }, []);
   const { data: session } = useSession();
   const [period, setPeriod] = useState<Period>('7d');
   const [data, setData] = useState<OverviewData | null>(null);
@@ -352,7 +353,7 @@ export default function ProgressPage() {
               })}
             </span>
             {data && (
-              <span className="text-gray-400">
+              <span className="text-gray-500">
                 · {Math.ceil((new Date('2026-07-01').getTime() - Date.now()) / 86400000)} ngày đến kỳ thi
               </span>
             )}
@@ -521,7 +522,7 @@ export default function ProgressPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 text-center py-8">
+              <p className="text-xs text-gray-500 text-center py-8">
                 Chưa có dữ liệu. Hãy ôn tập hoặc làm bài để xem!
               </p>
             );
@@ -580,7 +581,7 @@ export default function ProgressPage() {
                 <p className="text-xs text-gray-500 font-semibold">
                   Không có chủ đề yếu!
                 </p>
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-[11px] text-gray-500 mt-1">
                   {data ? 'Tất cả chủ đề ≥ 60%' : 'Chưa có dữ liệu'}
                 </p>
               </div>
@@ -633,7 +634,7 @@ export default function ProgressPage() {
                       <p className="text-xs font-bold text-gray-800 truncate">
                         {topicLabel} · {attempt.totalQuestions} câu
                       </p>
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-[11px] text-gray-500">
                         {timeAgo(attempt.submittedAt)} · {formatDuration(attempt.timeTakenSecs)}
                       </p>
                     </div>
@@ -649,7 +650,7 @@ export default function ProgressPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 Chưa có lần thi nào.
               </p>
               <Link

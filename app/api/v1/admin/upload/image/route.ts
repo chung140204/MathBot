@@ -35,14 +35,21 @@ export async function POST(req: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    
-    const timestamp = Date.now();
-    const ext = file.name.split('.').pop();
-    const fileName = `img-${timestamp}.${ext}`;
-    const path = join(uploadDir, fileName);
 
-    await writeFile(path, buffer);
-    
+    // Safe filename: whitelist extension + random name
+    const allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+    const rawExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const ext = allowedExts.includes(rawExt) ? rawExt : 'jpg';
+    const fileName = `img-${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}.${ext}`;
+    const filePath = join(uploadDir, fileName);
+
+    // Verify path stays within upload directory
+    if (!filePath.startsWith(uploadDir)) {
+      return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
+    }
+
+    await writeFile(filePath, buffer);
+
     return NextResponse.json({ url: `/uploads/questions/${fileName}` });
 
   } catch (error: unknown) {

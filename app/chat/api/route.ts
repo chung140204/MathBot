@@ -25,7 +25,15 @@ const gemini = process.env.GEMINI_API_KEY
     })
   : null;
 
-// NVIDIA client (fallback if no Gemini key)
+// Groq client (fallback after Gemini, text-only)
+const groq = process.env.GROQ_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    })
+  : null;
+
+// NVIDIA client (fallback for vision + last-resort text)
 const nvidia = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.NVIDIA_BASE_URL || undefined,
@@ -112,9 +120,7 @@ export async function POST(req: NextRequest) {
       return { id: sessionId, isNew: false };
     };
 
-    const ragPromise: Promise<RagSearchResult> = mode === 'fast'
-      ? Promise.resolve({ chunks: [] })
-      : ragSearch(lastUserMessage, { mode, history: messages });
+    const ragPromise: Promise<RagSearchResult> = ragSearch(lastUserMessage, { mode, history: messages });
 
     let sessionResult: { id: string; isNew: boolean };
     let ragResult: RagSearchResult;
@@ -237,7 +243,19 @@ export async function POST(req: NextRequest) {
         };
 
         // Format messages for OpenAI API (Vision support), limit context window
-        const recentMessages = messages.slice(-maxHistory);
+        // Truncate long assistant messages to reduce token usage (DB untouched)
+        // Strip image base64 from historical user messages to avoid massive token waste
+        const recentMessages = messages.slice(-maxHistory).map(msg => {
+          if (msg.role === 'assistant' && msg.content.length > 1500) {
+            return { ...msg, content: msg.content.slice(0, 1500) + '\n...[lược bỏ]' };
+          }
+          if (msg.role === 'user') {
+            // Strip embedded base64 images from history (keep only text)
+            const stripped = msg.content.replace(/!\[image\]\(data:image\/[^;]+;base64,[^)]+\)\n?\n?/g, '[ảnh]\n');
+            return { ...msg, content: stripped };
+          }
+          return msg;
+        });
         const apiMessages: Array<{ role: string; content: any }> = [...recentMessages];
         if (imageBase64 && apiMessages.length > 0) {
           const lastIndex = apiMessages.length - 1;
@@ -253,21 +271,26 @@ export async function POST(req: NextRequest) {
 
         // Mode-specific parameters
         const modeConfig = {
-          fast: { max_tokens: 1024, temperature: 0.3, enableThinking: false, reasoningBudget: 0 },
+          fast: { max_tokens: 3000, temperature: 0.3, enableThinking: false, reasoningBudget: 0 },
           thinking: { max_tokens: 4096, temperature: 0.2, enableThinking: true, reasoningBudget: 16384 },
         }[mode];
 
-        // Model selection: Gemini Flash (fast/vision) → Gemini Pro (thinking) → NVIDIA fallback
+        // Model selection: Gemini → Groq (text-only) → NVIDIA
         let chatClient: OpenAI;
         let chatModel: string;
 
         if (gemini) {
           chatClient = gemini;
-          if (imageBase64 || mode === 'fast') {
-            chatModel = 'gemini-2.5-flash';   // Vision + easy questions
+          if (imageBase64) {
+            chatModel = 'gemini-2.5-flash';   // Vision
           } else {
-            chatModel = 'gemini-2.5-pro';     // Hard questions (thinking mode)
+            chatModel = 'gemini-2.5-pro';     // Fast + Thinking đều dùng Pro
           }
+        } else if (groq && !imageBase64) {
+          chatClient = groq;
+          chatModel = mode === 'fast'
+            ? (process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant')
+            : (process.env.GROQ_MODEL || 'qwen/qwen3-32b');
         } else {
           chatClient = nvidia;
           chatModel = imageBase64

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/db';
-import { startOfToday } from 'date-fns';
+import { startOfToday, subDays } from 'date-fns';
 
 export async function GET() {
     const session = await getServerSession(authOptions);
@@ -43,15 +43,50 @@ export async function GET() {
       console.error('Error counting AI chats:', e);
     }
 
+    // Compute real trends: compare last 7 days vs previous 7 days
+    const weekAgo = subDays(today, 7);
+    const twoWeeksAgo = subDays(today, 14);
+
+    let usersThisWeek = 0, usersPrevWeek = 0;
+    let examsThisWeek = 0, examsPrevWeek = 0;
+    let chatsThisWeek = 0, chatsPrevWeek = 0;
+
+    try {
+      [usersThisWeek, usersPrevWeek] = await Promise.all([
+        prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
+        prisma.user.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
+      ]);
+    } catch { /* keep 0 */ }
+
+    try {
+      [examsThisWeek, examsPrevWeek] = await Promise.all([
+        prisma.examAttempt.count({ where: { submittedAt: { gte: weekAgo } } }),
+        prisma.examAttempt.count({ where: { submittedAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
+      ]);
+    } catch { /* keep 0 */ }
+
+    try {
+      [chatsThisWeek, chatsPrevWeek] = await Promise.all([
+        prisma.chatMessage.count({ where: { createdAt: { gte: weekAgo }, role: 'assistant' } }),
+        prisma.chatMessage.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo }, role: 'assistant' } }),
+      ]);
+    } catch { /* keep 0 */ }
+
+    const trendStr = (curr: number, prev: number) => {
+      if (prev === 0) return curr > 0 ? `+${curr}` : '0';
+      const pct = Math.round(((curr - prev) / prev) * 100);
+      return pct >= 0 ? `+${pct}%` : `${pct}%`;
+    };
+
     return NextResponse.json({
       totalUsers,
       totalQuestions,
       examsToday,
       aiChatsToday,
-      usersTrend: '+12%',
-      questionsTrend: '+5',
-      examsTrend: '+18%',
-      aiTrend: '+24%',
+      usersTrend: trendStr(usersThisWeek, usersPrevWeek),
+      questionsTrend: `+${totalQuestions}`,
+      examsTrend: trendStr(examsThisWeek, examsPrevWeek),
+      aiTrend: trendStr(chatsThisWeek, chatsPrevWeek),
     });
   } catch (error: unknown) {
     console.error('Admin Stats Error:', error);

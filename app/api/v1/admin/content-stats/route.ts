@@ -37,6 +37,7 @@ export async function GET() {
       knowledgeChunks,
     });
   } catch (error: unknown) {
-    return NextResponse.json({ theory: 0, examSets: 0, practice: 0, thptExams: 0, knowledgeChunks: 0 });
+    console.error('[Content Stats] Error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

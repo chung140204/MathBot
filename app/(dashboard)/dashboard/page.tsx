@@ -15,6 +15,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+// Ngày thi THPT Quốc Gia — cập nhật mỗi năm
+const THPT_EXAM_DATE = '2026-07-01';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TopicStat = {
@@ -63,10 +66,7 @@ function formatStudyTime(secs: number): string {
   return `${m}m`;
 }
 
-function formatNumber(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
+
 
 function timeAgo(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -179,7 +179,7 @@ function WeeklyChart({ data }: { data: WeeklyScore[] }) {
         <Bar
           dataKey="score"
           maxBarSize={36}
-          shape={(props: { x?: number; y?: number; width?: number; height?: number; value?: number }) => {
+          shape={(props: any) => {
             const { x = 0, y = 0, width = 0, height = 0, value } = props;
             const r = Math.min(6, width / 2);
             return (
@@ -210,6 +210,7 @@ function Skeleton({ className }: { className: string }) {
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  useEffect(() => { document.title = 'Dashboard | MathBot'; }, []);
   const { data: session } = useSession();
   const [data, setData] = useState<OverviewData | null>(null);
   const [studyProgress, setStudyProgress] = useState<{ topic: string; percent: number }[]>([]);
@@ -254,8 +255,8 @@ export default function DashboardPage() {
               month: 'long',
             })}
             {data && (
-              <span className="ml-1 text-gray-400">
-                · {Math.ceil((new Date('2026-07-01').getTime() - Date.now()) / 86400000)} ngày đến kỳ thi
+              <span className="ml-1 text-gray-500">
+                · {Math.ceil((new Date(THPT_EXAM_DATE).getTime() - Date.now()) / 86400000)} ngày đến kỳ thi
               </span>
             )}
           </p>
@@ -283,8 +284,8 @@ export default function DashboardPage() {
 
       {/* ── Metric Cards ── */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-28" />
           ))}
         </div>
@@ -293,7 +294,7 @@ export default function DashboardPage() {
           {error}
         </div>
       ) : data ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <MetricCard
             label="Tổng bài đã làm"
             value={String(data.totalExams)}
@@ -318,6 +319,18 @@ export default function DashboardPage() {
             sub="Tổng thời gian làm bài thi"
             subPositive
           />
+          {/* Streak card */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col justify-between">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Chuỗi luyện tập</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-3xl">{streak > 0 ? '🔥' : '❄️'}</span>
+              <span className="text-3xl font-black text-gray-900">{streak}</span>
+              <span className="text-sm font-bold text-gray-500">ngày</span>
+            </div>
+            <p className={`text-xs font-semibold mt-1 ${streak > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {streak >= 7 ? 'Tuyệt vời! Duy trì chuỗi!' : streak > 0 ? 'Tiếp tục giữ chuỗi!' : 'Hãy bắt đầu luyện tập!'}
+            </p>
+          </div>
         </div>
       ) : null}
 
@@ -419,9 +432,15 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 text-center py-8">
-                Chưa có dữ liệu. Hãy ôn tập hoặc làm bài để xem thống kê!
-              </p>
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500 mb-3">Chưa có dữ liệu thống kê</p>
+                <Link
+                  href="/practice"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#059669] text-white text-xs font-bold rounded-xl hover:bg-[#047857] transition-colors"
+                >
+                  Làm bài thi đầu tiên
+                </Link>
+              </div>
             );
           })()}
         </div>
@@ -477,7 +496,7 @@ export default function DashboardPage() {
                   })}
                 </div>
               ) : (
-                <p className="text-xs text-gray-400 text-center py-4">
+                <p className="text-xs text-gray-500 text-center py-4">
                   {data ? '🎉 Không có chủ đề yếu!' : 'Chưa có dữ liệu'}
                 </p>
               );
@@ -512,12 +531,12 @@ export default function DashboardPage() {
                       ? TOPIC_LABEL[attempt.topics[0] as Topic] ?? attempt.topics[0]
                       : `${attempt.topics.length} chủ đề`;
                   return (
-                    <div key={attempt.id} className="flex items-center justify-between gap-2">
+                    <Link key={attempt.id} href={`/exam/result?attemptId=${attempt.id}`} className="flex items-center justify-between gap-2 p-2 -mx-2 rounded-xl hover:bg-gray-50 transition-colors">
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-gray-800 truncate">
                           {topicLabel} · {attempt.totalQuestions} câu
                         </p>
-                        <p className="text-[11px] text-gray-400">
+                        <p className="text-[11px] text-gray-500">
                           {timeAgo(attempt.submittedAt)} · {formatDuration(attempt.timeTakenSecs)}
                         </p>
                       </div>
@@ -530,14 +549,21 @@ export default function DashboardPage() {
                       >
                         {attempt.totalScore}/{attempt.totalQuestions}
                       </span>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-xs text-gray-400 text-center py-4">
-                Chưa có lần thi nào. Bắt đầu luyện tập ngay!
-              </p>
+              <div className="text-center py-6">
+                <p className="text-xs text-gray-500 mb-3">Chưa có lần thi nào</p>
+                <Link
+                  href="/practice"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#059669] text-white text-xs font-bold rounded-xl hover:bg-[#047857] transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                  Bắt đầu luyện tập
+                </Link>
+              </div>
             )}
           </div>
         </div>

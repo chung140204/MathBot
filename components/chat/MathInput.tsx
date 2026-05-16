@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 
 interface MathInputProps {
   value: string;
@@ -14,13 +15,53 @@ interface MathInputProps {
 const MAX_IMAGE_SIZE_MB = 4;
 const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
 
-const FORMULA_PALETTE = [
-  { label: 'Phân số', tex: '\\frac{ }{ }', icon: 'a/b' },
-  { label: 'Căn bậc 2', tex: '\\sqrt{ }', icon: '√x' },
-  { label: 'Lũy thừa', tex: '^{ }', icon: 'xⁿ' },
-  { label: 'Tích phân', tex: '\\int_{ }^{ }', icon: '∫' },
-  { label: 'Tổng (Sigma)', tex: '\\sum_{ }^{ }', icon: 'Σ' },
+const FORMULA_CATEGORIES = [
+  {
+    name: 'Cơ bản',
+    items: [
+      { label: 'Phân số', tex: '\\frac{ }{ }', icon: 'a/b' },
+      { label: 'Căn bậc 2', tex: '\\sqrt{ }', icon: '√x' },
+      { label: 'Căn bậc n', tex: '\\sqrt[n]{ }', icon: 'ⁿ√' },
+      { label: 'Lũy thừa', tex: '^{ }', icon: 'xⁿ' },
+      { label: 'Chỉ số dưới', tex: '_{ }', icon: 'xₙ' },
+      { label: 'Giá trị tuyệt đối', tex: '\\left| \\right|', icon: '|x|' },
+    ],
+  },
+  {
+    name: 'Giải tích',
+    items: [
+      { label: 'Tích phân', tex: '\\int_{ }^{ }', icon: '∫' },
+      { label: 'Tổng Sigma', tex: '\\sum_{i=1}^{n}', icon: 'Σ' },
+      { label: 'Giới hạn', tex: '\\lim_{x \\to }', icon: 'lim' },
+      { label: 'Đạo hàm', tex: "f'(x)", icon: "f'" },
+      { label: 'Vô cực', tex: '\\infty', icon: '∞' },
+    ],
+  },
+  {
+    name: 'Lượng giác',
+    items: [
+      { label: 'sin', tex: '\\sin( )', icon: 'sin' },
+      { label: 'cos', tex: '\\cos( )', icon: 'cos' },
+      { label: 'tan', tex: '\\tan( )', icon: 'tan' },
+      { label: 'Pi', tex: '\\pi', icon: 'π' },
+      { label: 'Alpha', tex: '\\alpha', icon: 'α' },
+    ],
+  },
+  {
+    name: 'Ký hiệu',
+    items: [
+      { label: 'Không bằng', tex: '\\neq', icon: '≠' },
+      { label: 'Nhỏ hơn hoặc bằng', tex: '\\leq', icon: '≤' },
+      { label: 'Lớn hơn hoặc bằng', tex: '\\geq', icon: '≥' },
+      { label: 'Thuộc', tex: '\\in', icon: '∈' },
+      { label: 'Mũi tên', tex: '\\Rightarrow', icon: '⇒' },
+      { label: 'Cộng trừ', tex: '\\pm', icon: '±' },
+    ],
+  },
 ];
+
+// Flat list for backward compatibility
+const FORMULA_PALETTE = FORMULA_CATEGORIES.flatMap(c => c.items);
 
 export default function MathInput({ value, onChange, onEnter, image, onImageSelect, disabled }: MathInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -111,7 +152,7 @@ export default function MathInput({ value, onChange, onEnter, image, onImageSele
 
   const readFileAsBase64 = (file: File) => {
     if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      alert(`Ảnh quá lớn (tối đa ${MAX_IMAGE_SIZE_MB}MB). Vui lòng chọn ảnh nhỏ hơn.`);
+      toast.error(`Ảnh quá lớn (tối đa ${MAX_IMAGE_SIZE_MB}MB). Vui lòng chọn ảnh nhỏ hơn.`);
       return;
     }
     const reader = new FileReader();
@@ -122,7 +163,7 @@ export default function MathInput({ value, onChange, onEnter, image, onImageSele
     };
     reader.onerror = () => {
       console.error('Failed to read image file');
-      alert('Không thể đọc file ảnh. Vui lòng thử lại.');
+      toast.error('Không thể đọc file ảnh. Vui lòng thử lại.');
     };
     reader.readAsDataURL(file);
   };
@@ -174,20 +215,27 @@ export default function MathInput({ value, onChange, onEnter, image, onImageSele
       <div className="relative flex items-end gap-2">
         {/* Formula Palette Popup */}
       {showPalette && (
-        <div 
-          className="absolute bottom-[calc(100%+12px)] left-0 bg-white border border-gray-200 rounded-xl shadow-lg p-2 flex flex-wrap gap-2 z-50 animate-in fade-in zoom-in-95 duration-200"
+        <div
+          className="absolute bottom-[calc(100%+12px)] left-0 bg-white border border-gray-200 rounded-xl shadow-lg p-3 z-50 animate-in fade-in zoom-in-95 duration-200 w-[320px] max-h-[280px] overflow-y-auto"
           style={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)' }}
         >
-          {FORMULA_PALETTE.map((formula, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => insertFormula(formula.tex)}
-              className="h-9 min-w-[40px] px-2 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 text-gray-700 rounded-lg text-sm font-semibold transition-all border border-gray-200 flex items-center justify-center"
-              title={formula.label}
-            >
-              {formula.icon}
-            </button>
+          {FORMULA_CATEGORIES.map((cat) => (
+            <div key={cat.name} className="mb-2 last:mb-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 px-1">{cat.name}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {cat.items.map((formula, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => insertFormula(formula.tex)}
+                    className="h-8 min-w-[36px] px-2 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 text-gray-700 rounded-lg text-sm font-semibold transition-all border border-gray-200 flex items-center justify-center"
+                    title={formula.label}
+                  >
+                    {formula.icon}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
