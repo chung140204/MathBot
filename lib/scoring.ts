@@ -6,7 +6,7 @@ export const THPT_SCORING = {
   pointPerSA: 0.5,
 };
 
-const DEFAULT_SCORING = {
+export const DEFAULT_SCORING = {
   pointPerMC: 1,
   pointPerTFItem: 0.25,
   pointPerSA: 1,
