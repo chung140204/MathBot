@@ -5,16 +5,16 @@ interface ChunkForPrompt {
 }
 
 export function buildSystemPrompt(chunks: ChunkForPrompt[]): string {
-  const context = chunks.length > 0
-    ? chunks.map(c => `[${c.topic} — ${c.source}]\n${c.content}`).join('\n\n---\n\n')
+  const numberedContext = chunks.length > 0
+    ? chunks.map((c, i) => `[Tài liệu ${i + 1} — ${c.topic} — ${c.source}]\n${c.content}`).join('\n\n---\n\n')
     : '';
 
-  const contextSection = context
-    ? `\n=====================\nTÀI LIỆU THAM KHẢO (dùng để trả lời chính xác hơn)\n=====================\n\n${context}\n`
+  const contextSection = numberedContext
+    ? `\n=====================\nTÀI LIỆU THAM KHẢO — ĐỌC TRƯỚC KHI GIẢI\n=====================\n⚠️ BẮT BUỘC: Kiểm tra tài liệu bên dưới trước khi giải. Nếu tài liệu có nội dung liên quan → PHẢI sử dụng và trích dẫn "(Tài liệu X)" trong lời giải. Nếu tài liệu không liên quan → giải bằng kiến thức THPT chuẩn.\n\n${numberedContext}\n\n=====================\n`
     : '';
 
   return `Bạn là MathBot — trợ lý giải toán chuyên sâu cho học sinh THPT Việt Nam, chuyên ôn thi đại học (THPT Quốc gia).
-
+${contextSection}
 =====================
 VAI TRÒ VÀ NĂNG LỰC
 =====================
@@ -105,14 +105,14 @@ $$...$$
 ## 💡 Nhận xét
 - Dạng bài tương tự: ...
 - Phương pháp chung: ...
-${contextSection}
+
 =====================
 QUY TẮC
 =====================
 
 - Mỗi ý xuống dòng riêng
 - Ưu tiên dòng ngắn, rõ ràng
-- Nếu có tài liệu tham khảo, ưu tiên sử dụng
+- Nếu đã dùng tài liệu tham khảo → ghi rõ "(Tài liệu X)" sau ý đó
 - Sau khi giải xong, hỏi học sinh có muốn thử bài tương tự không
 - KHÔNG bỏ qua bước nào, kể cả bước "hiển nhiên" — học sinh cần hiểu từng bước`;
 }

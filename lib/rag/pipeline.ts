@@ -4,6 +4,7 @@ import { classifyTopic } from './router';
 import { decomposeQuery } from './decompose';
 import { mergeAndRerank } from './rerank';
 import { rewriteQuery } from './query-rewriter';
+import { generateHypotheticalAnswer } from './hyde';
 import type { KnowledgeChunkResult } from './types';
 
 export interface RagSearchOptions {
@@ -44,12 +45,22 @@ export async function ragSearch(
       }
     }
 
+    // Step 1b: HyDE — generate hypothetical answer for better embedding match
+    let hydeText: string | null = null;
+    if (ragQuery.length >= 15) {
+      hydeText = await generateHypotheticalAnswer(ragQuery);
+      if (hydeText) console.log(`[RAG] HyDE generated: ${hydeText.length} chars`);
+    }
+
     // Step 2: Classify topic + decompose query (both sync)
     const topic = classifyTopic(ragQuery);
     const decomposed = decomposeQuery(ragQuery);
 
-    // Step 3: Embed all sub-queries (parallel with concurrency limit)
-    const embeddings = await createEmbeddings(decomposed.subQueries);
+    // Step 3: Embed — HyDE text (if available) + sub-queries
+    const textsToEmbed = hydeText
+      ? [hydeText, ...decomposed.subQueries]
+      : decomposed.subQueries;
+    const embeddings = await createEmbeddings(textsToEmbed);
 
     // Step 4: Parallel hybrid search — vector searches + keyword search
     const [vectorResults, keywordResults] = await Promise.all([
@@ -68,6 +79,13 @@ export async function ragSearch(
       topic,
       ragQuery,
     );
+
+    // Confidence gate: if best chunk score is too low, skip context entirely
+    const minConfidence = parseFloat(process.env.RAG_CONFIDENCE_THRESHOLD || '0.28');
+    if (chunks.length > 0 && chunks[0].finalScore < minConfidence) {
+      console.log(`[RAG] Low confidence (${chunks[0].finalScore.toFixed(2)} < ${minConfidence}), skipping context`);
+      return { chunks: [], rewrittenQuery };
+    }
 
     return { chunks, rewrittenQuery };
   } catch (error) {

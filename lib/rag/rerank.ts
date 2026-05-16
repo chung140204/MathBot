@@ -60,5 +60,21 @@ export function mergeAndRerank(
 
   ranked.sort((a, b) => b.finalScore - a.finalScore);
 
-  return ranked.slice(0, topK);
+  // Filter out low-score chunks (configurable threshold)
+  const minScore = parseFloat(process.env.RAG_MIN_SCORE || '0.20');
+  const filtered = ranked.filter((c) => c.finalScore >= minScore);
+
+  // Source diversity: max 2 chunks per source file
+  const sourceCount = new Map<string, number>();
+  const diverse: RankedChunk[] = [];
+  for (const chunk of filtered) {
+    const count = sourceCount.get(chunk.source) ?? 0;
+    if (count < 2) {
+      diverse.push(chunk);
+      sourceCount.set(chunk.source, count + 1);
+    }
+    if (diverse.length >= topK) break;
+  }
+
+  return diverse;
 }

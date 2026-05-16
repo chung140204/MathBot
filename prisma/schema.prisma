@@ -146,7 +146,7 @@ model KnowledgeChunk {
   content   String
   topic     Topic
   source    String
-  embedding Unsupported("vector(1024)")?
+  embedding Unsupported("vector(768)")?
   createdAt DateTime                  @default(now())
 
   @@map("knowledge_chunks")

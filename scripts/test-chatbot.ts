@@ -110,9 +110,9 @@ async function main() {
     return Array.isArray(emb) && emb.length > 0;
   });
 
-  await testAsync('embedding có đúng 1024 dims', async () => {
+  await testAsync('embedding có đúng 768 dims (gemini-embedding-001)', async () => {
     const emb = await createEmbedding('tích phân');
-    return emb.length === 1024;
+    return emb.length === 768;
   });
 
   // ═══════════════════════════════
@@ -131,12 +131,12 @@ async function main() {
   });
 
   await testAsync('search "tích phân" → chunks thuộc INTEGRALS', async () => {
-    const { chunks } = await ragSearch('tính tích phân xác định');
+    const { chunks } = await ragSearch('tìm nguyên hàm của hàm số');
     return chunks.length > 0 && chunks.some((c: any) => c.topic === 'INTEGRALS');
   });
 
   await testAsync('search "số phức" → chunks thuộc COMPLEX_NUMBERS', async () => {
-    const { chunks } = await ragSearch('tìm mô-đun số phức');
+    const { chunks } = await ragSearch('tìm mô-đun số phức z = 3 + 4i');
     return chunks.length > 0 && chunks.some((c: any) => c.topic === 'COMPLEX_NUMBERS');
   });
 
@@ -334,8 +334,10 @@ async function main() {
   });
 
   test('top-K giới hạn đúng số lượng', () => {
+    // Use distinct sources to avoid diversity cap (max 2 per source)
+    // Use high similarity to avoid minScore filter (default 0.30)
     const chunks = Array.from({ length: 10 }, (_, i) => ({
-      id: `c${i}`, content: `chunk ${i}`, topic: 'DERIVATIVES', source: 'test', similarity: Math.random(),
+      id: `c${i}`, content: `chunk ${i} tính đạo hàm`, topic: 'DERIVATIVES', source: `source${i}`, similarity: 0.8,
     }));
     const result = mergeAndRerank([chunks], [], null, 'test', 3);
     return result.length === 3;

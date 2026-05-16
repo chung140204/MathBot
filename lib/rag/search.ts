@@ -2,7 +2,7 @@ import prisma from '@/lib/db';
 import { KnowledgeChunkResult } from './types';
 
 const RAG_TOP_K = parseInt(process.env.RAG_TOP_K || '5', 10);
-const RAG_SIMILARITY_THRESHOLD = parseFloat(process.env.RAG_SIMILARITY_THRESHOLD || '0.7');
+const RAG_SIMILARITY_THRESHOLD = parseFloat(process.env.RAG_SIMILARITY_THRESHOLD || '0.25');
 
 export async function searchSimilarChunks(
   embedding: number[],
