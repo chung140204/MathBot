@@ -3,6 +3,8 @@
 ---
 [topic: COMPLEX_NUMBERS]
 [source: SGK Toán 12 - Khái niệm số phức]
+[difficulty: RECOGNITION]
+[subTopic: toan_12_khai_niem_so_phuc]
 
 Số phức: $z = a + bi$ với $a, b \in \mathbb{R}$, $i^2 = -1$
 - Phần thực: $\text{Re}(z) = a$
@@ -17,6 +19,8 @@ Biểu diễn hình học: $z = a + bi$ ↔ điểm $M(a, b)$ trên mặt phẳn
 ---
 [topic: COMPLEX_NUMBERS]
 [source: SGK Toán 12 - Phép tính số phức]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phep_tinh_so_phuc]
 
 Phép tính trên số phức:
 - Cộng: $(a+bi) + (c+di) = (a+c) + (b+d)i$
@@ -33,6 +37,8 @@ Tính chất:
 ---
 [topic: COMPLEX_NUMBERS]
 [source: SGK Toán 12 - Phương trình bậc hai số phức]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_bac_hai_so_phuc]
 
 Phương trình bậc hai $az^2 + bz + c = 0$ (hệ số thực):
 
@@ -49,6 +55,8 @@ Hệ thức Viète: $z_1 + z_2 = -\frac{b}{a}$, $z_1 \cdot z_2 = \frac{c}{a}$
 ---
 [topic: COMPLEX_NUMBERS]
 [source: SGK Toán 12 - Lũy thừa của i]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_luy_thua_cua_i]
 
 Lũy thừa của $i$:
 - $i^0 = 1$
@@ -66,6 +74,9 @@ Công thức $(1+i)^2 = 2i$ → $(1+i)^{2n} = (2i)^n = 2^n \cdot i^n$
 ---
 [topic: COMPLEX_NUMBERS]
 [source: SGK Toán 12 - Biểu diễn hình học số phức]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_bieu_dien_hinh_hoc_so_phuc]
+[relatedTopics: ANALYTIC_GEOMETRY]
 
 Biểu diễn hình học:
 - Số phức $z = a + bi$ ↔ điểm $M(a,b)$ ↔ vector $\vec{OM}$
@@ -80,6 +91,8 @@ Tập hợp điểm:
 ---
 [topic: COMPLEX_NUMBERS]
 [source: Toán 12 - Dạng lượng giác số phức]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_dang_luong_giac_so_phuc]
 
 Dạng lượng giác: $z = r(\cos\varphi + i\sin\varphi)$
 - $r = |z|$ (mô-đun)
@@ -96,6 +109,8 @@ $$z^n = r^n(\cos n\varphi + i\sin n\varphi)$$
 ---
 [topic: COMPLEX_NUMBERS]
 [source: Toán 12 - Bài toán GTLN GTNN mô-đun]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_bai_toan_gtln_gtnn_mo_dun]
 
 Tìm GTLN, GTNN của $|z|$ với điều kiện:
 
@@ -113,6 +128,8 @@ Ví dụ: Tìm min $|z - 1 + 2i|$ biết $|z + 2 - i| = 1$
 ---
 [topic: COMPLEX_NUMBERS]
 [source: Toán 12 - Mẹo thi: Số phức]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_so_phuc]
 
 Mẹo thi nhanh cho số phức:
 

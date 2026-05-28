@@ -3,6 +3,9 @@
 ---
 [topic: EXPONENTIAL_LOG]
 [source: THPT QG 2024 - VDC PT Mũ có tham số]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2024_vdc_pt_mu_co_tham_so]
+[relatedTopics: FUNCTIONS]
 
 Bài: Tìm $m$ để phương trình $4^x - 2^{x+1} + m = 0$ có 2 nghiệm phân biệt.
 
@@ -23,6 +26,8 @@ Vậy $0 < m < 1$.
 ---
 [topic: EXPONENTIAL_LOG]
 [source: THPT QG 2023 - VDC BPT Logarit]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2023_vdc_bpt_logarit]
 
 Bài: Giải bất phương trình $\log_2(x+1) + \log_2(x-1) > 3$.
 
@@ -41,6 +46,8 @@ Kết hợp ĐK $x > 1$: $x > 3$.
 ---
 [topic: EXPONENTIAL_LOG]
 [source: THPT QG 2022 - VDC Phương trình mũ-logarit hỗn hợp]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2022_vdc_phuong_trinh_mu_logarit]
 
 Bài: Giải phương trình $2^x \cdot 3^{x^2} = 6$.
 
@@ -68,6 +75,8 @@ Phương pháp: Logarit hóa → PT bậc 2 theo $x$.
 ---
 [topic: EXPONENTIAL_LOG]
 [source: THPT QG 2021 - VDC Tìm m để PT logarit có nghiệm]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2021_vdc_tim_m_de_pt_logarit_co_]
 
 Bài: Tìm $m$ để PT $\log_3^2 x - 2m\log_3 x + m + 2 = 0$ có 2 nghiệm $x_1, x_2$ sao cho $x_1 \cdot x_2 = 81$.
 

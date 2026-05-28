@@ -28,6 +28,7 @@ All flags are defined in two places — keep them in sync:
 | `ENABLE_EXPORT_PDF` | env | `false` | Planned | Export results as PDF |
 | `ENABLE_ADMIN_PANEL` | env | `false` | Planned | Admin dashboard for managing questions |
 | `USE_GPT4O_MINI` | env | `false` | Dev only | Use cheaper model to reduce API cost |
+| `ENABLE_CLASSROOM` | env | `true` | Active | Classroom system (teacher + student roles, class codes, exam sets) |
 
 ---
 

@@ -3,6 +3,8 @@
 ---
 [topic: DERIVATIVES]
 [source: SGK Toán 12 - Công thức đạo hàm cơ bản]
+[difficulty: RECOGNITION]
+[subTopic: cong_thuc_co_ban]
 
 Bảng đạo hàm cơ bản:
 - $(C)' = 0$ (hằng số)
@@ -21,6 +23,8 @@ Bảng đạo hàm cơ bản:
 ---
 [topic: DERIVATIVES]
 [source: SGK Toán 12 - Quy tắc đạo hàm]
+[difficulty: RECOGNITION]
+[subTopic: quy_tac_dao_ham]
 
 Quy tắc tính đạo hàm:
 - $(u + v)' = u' + v'$
@@ -38,6 +42,8 @@ Ví dụ đạo hàm hàm hợp:
 ---
 [topic: DERIVATIVES]
 [source: SGK Toán 12 - Đạo hàm cấp hai]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_dao_ham_cap_hai]
 
 Đạo hàm cấp hai: $f''(x) = (f'(x))'$
 
@@ -54,6 +60,9 @@ Ví dụ: $f(x) = x^3 - 3x$
 ---
 [topic: DERIVATIVES]
 [source: SGK Toán 12 - Ứng dụng: Tính đơn điệu]
+[difficulty: COMPREHENSION]
+[subTopic: don_dieu]
+[relatedTopics: FUNCTIONS]
 
 Tính đơn điệu của hàm số:
 - Hàm số đồng biến trên $(a,b)$ khi $f'(x) > 0$ với mọi $x \in (a,b)$
@@ -74,6 +83,9 @@ Ví dụ: $f(x) = x^3 - 3x + 2$
 ---
 [topic: DERIVATIVES]
 [source: SGK Toán 12 - Ứng dụng: Cực trị]
+[difficulty: COMPREHENSION]
+[subTopic: cuc_tri]
+[relatedTopics: FUNCTIONS]
 
 Cực trị hàm số:
 - Cực đại tại $x_0$: $f'(x)$ đổi dấu từ $+$ sang $-$ khi qua $x_0$
@@ -92,6 +104,9 @@ Số cực trị của hàm bậc 3 $y = ax^3 + bx^2 + cx + d$:
 ---
 [topic: DERIVATIVES]
 [source: SGK Toán 12 - Ứng dụng: GTLN GTNN]
+[difficulty: APPLICATION]
+[subTopic: gtln_gtnn]
+[relatedTopics: FUNCTIONS]
 
 Giá trị lớn nhất, nhỏ nhất trên đoạn $[a,b]$:
 
@@ -108,6 +123,9 @@ Công thức nhanh cho hàm bậc 2 $f(x) = ax^2 + bx + c$ trên $[a,b]$:
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Tiệm cận đồ thị]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_tiem_can_do_thi]
+[relatedTopics: FUNCTIONS]
 
 Tiệm cận:
 - Tiệm cận đứng $x = a$: $\lim_{x \to a} f(x) = \pm\infty$
@@ -126,6 +144,9 @@ Hàm $y = \frac{ax^2+bx+c}{dx+e}$:
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Đồ thị hàm bậc 3]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_do_thi_ham_bac_3]
+[relatedTopics: FUNCTIONS]
 
 Khảo sát hàm bậc 3: $y = ax^3 + bx^2 + cx + d$
 
@@ -143,6 +164,9 @@ Tính chất quan trọng:
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Đồ thị hàm bậc 4 trùng phương]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_do_thi_ham_bac_4_trung_phuong]
+[relatedTopics: FUNCTIONS]
 
 Khảo sát hàm bậc 4 trùng phương: $y = ax^4 + bx^2 + c$
 
@@ -159,6 +183,9 @@ Tính chất:
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Bài toán tương giao]
+[difficulty: APPLICATION]
+[subTopic: tuong_giao]
+[relatedTopics: FUNCTIONS]
 
 Bài toán tương giao: Tìm $m$ để phương trình $f(x) = m$ có $k$ nghiệm.
 
@@ -176,6 +203,9 @@ Với hàm bậc 3 có 2 cực trị ($y_{CT} < y_{CĐ}$):
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Bài toán tiếp tuyến]
+[difficulty: APPLICATION]
+[subTopic: tiep_tuyen]
+[relatedTopics: ANALYTIC_GEOMETRY]
 
 Phương trình tiếp tuyến tại điểm $M(x_0, y_0)$:
 $$y = f'(x_0)(x - x_0) + y_0$$
@@ -192,6 +222,8 @@ Số tiếp tuyến = số nghiệm $x_0$ tìm được.
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Đạo hàm trong bài toán thực tế]
+[difficulty: ADVANCED]
+[subTopic: bai_toan_thuc_te]
 
 Bài toán tối ưu (GTLN/GTNN thực tế):
 
@@ -211,6 +243,8 @@ Lưu ý: Luôn kiểm tra đáp án có thuộc miền xác định không.
 ---
 [topic: DERIVATIVES]
 [source: Toán 12 - Mẹo thi: Đạo hàm]
+[difficulty: APPLICATION]
+[subTopic: meo_thi]
 
 Mẹo thi nhanh cho đạo hàm:
 

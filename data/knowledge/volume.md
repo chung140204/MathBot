@@ -3,6 +3,9 @@
 ---
 [topic: VOLUME]
 [source: SGK Toán 12 - Thể tích khối đa diện]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_the_tich_khoi_da_dien]
+[relatedTopics: SOLID_GEOMETRY]
 
 Thể tích khối đa diện:
 - Hình hộp chữ nhật: $V = abc$ (3 cạnh)
@@ -20,6 +23,9 @@ Diện tích đáy thường gặp:
 ---
 [topic: VOLUME]
 [source: SGK Toán 12 - Thể tích khối tròn xoay]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_the_tich_khoi_tron_xoay]
+[relatedTopics: SOLID_GEOMETRY]
 
 Thể tích khối tròn xoay:
 - Hình trụ: $V = \pi r^2 h$, $S_{xq} = 2\pi r h$
@@ -34,6 +40,9 @@ Quan hệ trong hình nón:
 ---
 [topic: VOLUME]
 [source: Toán 12 - Tỉ số thể tích]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ti_so_the_tich]
+[relatedTopics: SOLID_GEOMETRY]
 
 Tỉ số thể tích:
 
@@ -49,6 +58,9 @@ $$\frac{V_{S.ABC}}{V_{S.A'B'C'}} = \frac{SA}{SA'} \cdot \frac{SB}{SB'} \cdot \fr
 ---
 [topic: VOLUME]
 [source: Toán 12 - Tính chiều cao hình chóp]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_tinh_chieu_cao_hinh_chop]
+[relatedTopics: SOLID_GEOMETRY]
 
 Cách tính chiều cao hình chóp $S.ABC$:
 
@@ -67,6 +79,9 @@ Các trường hợp đặc biệt:
 ---
 [topic: VOLUME]
 [source: Toán 12 - Hình chóp đều]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_hinh_chop_deu]
+[relatedTopics: SOLID_GEOMETRY]
 
 Hình chóp đều: đáy là đa giác đều, chân đường cao trùng tâm đáy.
 
@@ -85,6 +100,9 @@ Chóp tứ giác đều $S.ABCD$ cạnh đáy $a$, cạnh bên $b$:
 ---
 [topic: VOLUME]
 [source: Toán 12 - Mặt cầu ngoại tiếp, nội tiếp]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_mat_cau_ngoai_tiep_noi_tiep]
+[relatedTopics: SOLID_GEOMETRY]
 
 Mặt cầu ngoại tiếp hình chóp: đi qua tất cả đỉnh
 - Tâm $O$ cách đều tất cả đỉnh
@@ -102,6 +120,9 @@ Mặt cầu ngoại tiếp hình lập phương cạnh $a$: $R = \frac{a\sqrt{3}
 ---
 [topic: VOLUME]
 [source: Toán 12 - Hình trụ và hình nón]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_hinh_tru_va_hinh_non]
+[relatedTopics: SOLID_GEOMETRY]
 
 Hình trụ:
 - $V = \pi r^2 h$
@@ -122,6 +143,9 @@ Hình nón nội tiếp hình cầu bán kính $R$:
 ---
 [topic: VOLUME]
 [source: Toán 12 - Mẹo thi: Thể tích]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_the_tich]
+[relatedTopics: SOLID_GEOMETRY]
 
 Mẹo thi nhanh cho thể tích:
 

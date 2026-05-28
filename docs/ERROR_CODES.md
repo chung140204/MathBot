@@ -74,6 +74,30 @@ Never match on `error` message strings — they may change.
 | `NOT_FOUND` | 404 | Generic resource not found |
 | `FEATURE_DISABLED` | 403 | Feature is toggled off via feature flag |
 
+### Classroom errors — `CLASSROOM_*`
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `CLASSROOM_NOT_FOUND` | 404 | Classroom ID not found |
+| `CLASSROOM_ALREADY_JOINED` | 409 | Student already a member of this classroom |
+| `CLASSROOM_INVALID_CODE` | 400 | Class code format invalid or not found |
+| `CLASSROOM_NOT_MEMBER` | 403 | User is not a member of this classroom |
+
+### ExamSet errors — `EXAM_SET_*`
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `EXAM_SET_NOT_FOUND` | 404 | ExamSet ID not found |
+| `EXAM_SET_EMPTY` | 400 | ExamSet has no questions |
+
+### Assignment errors — `ASSIGNMENT_*`
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `ASSIGNMENT_NOT_FOUND` | 404 | Assignment ID not found |
+| `ASSIGNMENT_EXPIRED` | 400 | Assignment past due date |
+| `ASSIGNMENT_ALREADY_SUBMITTED` | 409 | Student already submitted this assignment |
+
 ---
 
 ## Implementation

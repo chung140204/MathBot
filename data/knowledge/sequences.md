@@ -3,6 +3,8 @@
 ---
 [topic: SEQUENCES]
 [source: SGK Toán 12 - Cấp số cộng]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_cap_so_cong]
 
 Cấp số cộng (CSC): dãy số mà hiệu hai số hạng liên tiếp không đổi.
 
@@ -22,6 +24,8 @@ Ví dụ: CSC có $u_1 = 3$, $d = 2$:
 ---
 [topic: SEQUENCES]
 [source: SGK Toán 12 - Cấp số nhân]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_cap_so_nhan]
 
 Cấp số nhân (CSN): dãy số mà thương hai số hạng liên tiếp không đổi.
 
@@ -37,6 +41,8 @@ Tính chất: $u_k^2 = u_{k-1} \cdot u_{k+1}$ (trung bình nhân)
 ---
 [topic: SEQUENCES]
 [source: Toán 12 - Dãy số đặc biệt]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_day_so_dac_biet]
 
 Nhận biết dãy số:
 - CSC: $u_{n+1} - u_n = d$ (hằng số) ↔ $u_n$ là hàm bậc nhất theo $n$
@@ -50,6 +56,8 @@ Dãy truy hồi thường gặp:
 ---
 [topic: SEQUENCES]
 [source: Toán 12 - Tổng của dãy số]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_tong_cua_day_so]
 
 Các công thức tổng quan trọng:
 - $1 + 2 + 3 + ... + n = \frac{n(n+1)}{2}$
@@ -65,6 +73,8 @@ $$\sum_{k=1}^n [f(k+1) - f(k)] = f(n+1) - f(1)$$
 ---
 [topic: SEQUENCES]
 [source: Toán 12 - Phương pháp quy nạp]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_phap_quy_nap]
 
 Phương pháp quy nạp toán học:
 
@@ -80,6 +90,9 @@ Ví dụ: CM $1 + 2 + ... + n = \frac{n(n+1)}{2}$
 ---
 [topic: SEQUENCES]
 [source: Toán 12 - Mẹo thi: Dãy số]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_day_so]
+[relatedTopics: LIMITS]
 
 Mẹo thi nhanh cho dãy số:
 

@@ -3,6 +3,8 @@
 ---
 [topic: COMPLEX_NUMBERS]
 [source: THPT QG 2024 - VDC Mô-đun max/min với ràng buộc]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2024_vdc_mo_dun_max_min_voi_rang]
 
 Bài: Cho số phức $z$ thỏa $|z - 2 - i| = 1$. Tìm giá trị lớn nhất của $|z + 1 - 3i|$.
 
@@ -20,6 +22,8 @@ Phương pháp: Biểu diễn hình học → tìm khoảng cách lớn nhất t
 ---
 [topic: COMPLEX_NUMBERS]
 [source: THPT QG 2023 - VDC Số phức thỏa 2 điều kiện]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2023_vdc_so_phuc_thoa_2_dieu_kie]
 
 Bài: Tìm số phức $z$ thỏa $|z| = |z - 4|$ và $|z - 1 - i| = \sqrt{5}$.
 
@@ -42,6 +46,8 @@ Phương pháp: Mỗi điều kiện cho 1 tập hợp điểm → tìm giao.
 ---
 [topic: COMPLEX_NUMBERS]
 [source: THPT QG 2022 - VDC Biểu thức số phức có tham số]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2022_vdc_bieu_thuc_so_phuc_co_th]
 
 Bài: Cho $z = a + bi$ ($a, b \in \mathbb{R}$) thỏa $|z - 1| = 2$ và $P = z\bar{z} + 2z + 2\bar{z}$. Tìm max $P$.
 
@@ -68,6 +74,8 @@ Phương pháp: Biểu diễn $P$ theo 1 biến (dùng ĐK ràng buộc để kh
 ---
 [topic: COMPLEX_NUMBERS]
 [source: THPT QG 2020 - VDC Phương trình số phức]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2020_vdc_phuong_trinh_so_phuc]
 
 Bài: Tìm tất cả số phức $z$ thỏa $z^2 + |z|^2 = 8 - 6i$.
 

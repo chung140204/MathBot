@@ -3,6 +3,8 @@
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Quy tắc đếm]
+[difficulty: RECOGNITION]
+[subTopic: toan_12_quy_tac_dem]
 
 Quy tắc cộng: Nếu công việc được thực hiện bằng phương án 1 ($m$ cách) HOẶC phương án 2 ($n$ cách), thì tổng số cách = $m + n$.
 
@@ -13,6 +15,8 @@ Phân biệt: "hoặc" → cộng, "và/rồi" → nhân.
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Hoán vị, Chỉnh hợp, Tổ hợp]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_hoan_vi_chinh_hop_to_hop]
 
 Hoán vị: Sắp xếp $n$ phần tử theo thứ tự
 $$P_n = n! = n \times (n-1) \times ... \times 1$$
@@ -31,6 +35,9 @@ Tính chất:
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Nhị thức Newton]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_nhi_thuc_newton]
+[relatedTopics: SEQUENCES]
 
 Nhị thức Newton:
 $$(a+b)^n = \sum_{k=0}^n C_n^k \cdot a^{n-k} \cdot b^k$$
@@ -51,6 +58,8 @@ $C_5^2 \cdot (2x)^3 \cdot (-1)^2 = 10 \cdot 8 = 80$
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Xác suất cổ điển]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_xac_suat_co_dien]
 
 Xác suất cổ điển:
 $$P(A) = \frac{n(A)}{n(\Omega)}$$
@@ -66,6 +75,8 @@ trong đó:
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Các quy tắc xác suất]
+[difficulty: RECOGNITION]
+[subTopic: toan_12_cac_quy_tac_xac_suat]
 
 Quy tắc xác suất:
 - $0 \leq P(A) \leq 1$
@@ -82,6 +93,8 @@ Hai biến cố độc lập: $P(A \cap B) = P(A) \cdot P(B)$
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Biến ngẫu nhiên rời rạc]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_bien_ngau_nhien_roi_rac]
 
 Biến ngẫu nhiên rời rạc $X$:
 - Bảng phân phối xác suất: liệt kê các giá trị $x_i$ và $P(X = x_i)$
@@ -98,6 +111,9 @@ $$D(X) = E(X^2) - [E(X)]^2 = \sum x_i^2 \cdot P(X = x_i) - [E(X)]^2$$
 ---
 [topic: PROBABILITY]
 [source: SGK Toán 12 - Phân phối nhị thức]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phan_phoi_nhi_thuc]
+[relatedTopics: SEQUENCES]
 
 Phân phối nhị thức $B(n, p)$:
 - $n$ phép thử độc lập, mỗi phép có xác suất thành công $p$
@@ -114,6 +130,8 @@ $P(X=2) = C_5^2 \cdot (\frac{1}{6})^2 \cdot (\frac{5}{6})^3 = 10 \cdot \frac{125
 ---
 [topic: PROBABILITY]
 [source: Toán 12 - Bài toán xác suất hay gặp]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_bai_toan_xac_suat_hay_gap]
 
 Các dạng bài xác suất thường gặp:
 
@@ -133,6 +151,8 @@ Các dạng bài xác suất thường gặp:
 ---
 [topic: PROBABILITY]
 [source: Toán 12 - Mẹo thi: Xác suất]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_xac_suat]
 
 Mẹo thi nhanh cho xác suất:
 

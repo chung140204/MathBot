@@ -24,10 +24,14 @@
 .DS_Store
 *.pem
 
-# YOLO/ONNX models (large binary files — best.onnx tracked via Git LFS)
+# YOLO/ONNX models (large binary files)
 /models/*.pt
+/models/*.onnx
 /models/*.onnx.data
 /models/.cache
+
+# User uploads
+/public/uploads/
 
 # debug
 npm-debug.log*

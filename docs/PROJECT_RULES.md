@@ -187,3 +187,181 @@ docs: update API_SPEC with DELETE /chat/sessions endpoint
 | Never use `any` type | Type safety |
 | Never write raw SQL except vector search | Use Prisma Client |
 | Never render math with Unicode characters | Use KaTeX |
+
+---
+
+## Component architecture
+
+### File size limits
+
+- **Max 300 lines per component file** — nếu vượt, tách thành sub-components hoặc custom hooks
+- **Max 150 lines per custom hook** — nếu hook phức tạp hơn, tách logic thành utility functions
+- **Max 100 lines per API route handler** — delegate business logic sang modules trong `features/`
+
+```
+❌ UploadClient.tsx (1,889 dòng) — monolith không thể maintain
+✅ UploadClient.tsx (109) + ImageTabContent.tsx (283) + ThptTabContent.tsx (291) + ...
+```
+
+### Component decomposition rules
+
+1. **Mỗi tab trong tabbed UI = 1 component riêng** — không bao giờ inline nhiều tab trong 1 file
+2. **Shared UI primitives** (`Badge`, `SuccessHero`) → export từ `SharedUI.tsx` trong cùng feature folder
+3. **Repeated state patterns** → extract thành custom hook (ví dụ: `useOcrExtraction` cho SSE + OCR flow)
+4. **Repeated UI patterns** → extract thành component (ví dụ: `FileDropZone` cho drag-drop)
+
+```typescript
+// ✅ correct — tab component nhận props tối thiểu, tự quản state nội bộ
+export default function ImageTabContent({ apiBasePath }: { apiBasePath: string }) {
+  const ocr = useOcrExtraction({ apiBasePath, mode: 'individual' });
+  // ...
+}
+
+// ❌ wrong — parent truyền 15+ state props xuống tab
+<ImageTab
+  questions={questions} setQuestions={setQuestions}
+  status={status} setStatus={setStatus}
+  progress={progress} setProgress={setProgress} // ... quá nhiều props
+/>
+```
+
+### Hook patterns
+
+- **Mỗi hook làm 1 việc** — `useOcrExtraction` xử lý OCR, `useSessionPersistence` xử lý storage, `useBeforeUnload` xử lý warning
+- Hook phải expose cả **state** lẫn **actions** — không để consumer tự setState
+- Wrap mọi event handler với `useCallback` nếu handler được truyền xuống child component
+- Async operations trong hooks phải có **AbortController** + **timeout**
+
+```typescript
+// ✅ correct — hook expose action, consumer chỉ gọi
+const ocr = useOcrExtraction({ apiBasePath, mode: 'thpt' });
+ocr.startExtraction(files, { examYear: '2025' });
+
+// ❌ wrong — consumer tự manage SSE parsing, abort, state
+const [questions, setQuestions] = useState([]);
+const res = await fetch('/api/ocr', { body: formData });
+// ... 50 dòng SSE parsing inline
+```
+
+---
+
+## Backend pipeline architecture
+
+### Module boundary rules (áp dụng cho OCR pipeline và tương tự)
+
+1. **Route handler chỉ làm 3 việc**: auth check → input validation → delegate sang pipeline
+2. **Pipeline orchestrator** wire các stages và own SSE/streaming logic
+3. **Mỗi stage = 1 file** với input/output types rõ ràng
+4. **Pure utility functions** tách riêng (text processing, math fixing) — không mix với I/O logic
+
+```
+src/features/ocr/lib/
+├── ocr-pipeline.ts          ← orchestrator (wire stages, SSE stream)
+├── ocr-stage1-vision.ts     ← stage 1: vision API calls
+├── ocr-stage1c-figures.ts   ← stage 1c: figure label assignment
+├── ocr-stage2-structure.ts  ← stage 2: text → structured JSON
+├── ocr-figure-assignment.ts ← YOLO + figure → question mapping
+├── ocr-text-utils.ts        ← pure text functions (no I/O, no API calls)
+├── ocr-prompt.ts            ← prompt templates + ExtractedQuestion type
+└── yolo-detect.ts           ← ONNX inference (isolated, no other deps)
+```
+
+### Configuration & magic numbers
+
+- **Hardcoded thresholds** phải là `const` ở đầu file với tên mô tả:
+
+```typescript
+// ✅ correct
+const STAGE1C_MAX_Y_DISTANCE = 0.25;
+const ADJACENT_TABLE_MAX_GAP = 0.1;
+if (bestDist < STAGE1C_MAX_Y_DISTANCE) { ... }
+
+// ❌ wrong
+if (bestDist < 0.25) { ... }
+```
+
+- Nếu giá trị cần thay đổi runtime → dùng `process.env` với fallback
+
+### Error handling trong pipelines
+
+- **Không bao giờ swallow errors silent** — ít nhất phải `console.warn` + emit status event
+- Stage failures phải **degrade gracefully** — nếu YOLO fail, vẫn trả questions (không có figures)
+- Streaming responses phải wrap iterator trong `try-catch`
+- Mỗi error log phải có **prefix `[MODULE_NAME]`** để grep được
+
+```typescript
+// ✅ correct — log + emit + graceful degradation
+} catch (err) {
+  console.error(`[OCR_API] YOLO page ${i + 1} failed:`, err);
+  emit('status', { message: `Cảnh báo: Phát hiện hình trang ${i + 1} thất bại` });
+}
+
+// ❌ wrong — silent catch
+} catch { /* ignore */ }
+```
+
+---
+
+## Frontend quality rules
+
+### Constants & shared values
+
+- **Topic list, difficulty levels** → import từ `@/shared/constants/` — không bao giờ define inline map
+- **API endpoints** → nếu khác `apiBasePath`, extract thành named constant với comment giải thích
+
+```typescript
+// ✅ correct
+import { TOPICS } from '@/shared/constants/topics';
+import { DIFFICULTIES } from './SharedUI';
+const TEACHER_UPLOAD_URL = '/api/v1/teacher/questions/upload';
+
+// ❌ wrong — duplicate inline map
+const TOPIC_MAP = { DERIVATIVES: 'Đạo hàm', ... };
+```
+
+### Async operations trong components
+
+- Mọi `fetch()` phải có `AbortController` nếu component có thể unmount trước khi response về
+- Long-running requests (>30s) phải có **timeout**
+- **`useBeforeUnload`** bắt buộc khi component có unsaved state (extracting, done-but-not-saved)
+
+### Accessibility baseline
+
+- Interactive non-button elements phải có: `role="button"`, `tabIndex={0}`, `onKeyDown` (Enter/Space), `aria-label`
+- File drop zones phải validate cả **extension** lẫn **MIME type**
+- Form fields có label bắt buộc phải có `aria-required="true"`
+
+### State persistence
+
+- `useSessionPersistence` phải persist cả `'done'` lẫn `'saving'` state — tránh mất data nếu user rời trang
+- Session restore phải verify data integrity trước khi apply (check `questions.length > 0`)
+- Mỗi tab dùng **storage key riêng** — không conflict
+
+---
+
+## File naming conventions
+
+| Loại | Pattern | Ví dụ |
+|------|---------|-------|
+| React component | PascalCase | `ImageTabContent.tsx`, `FileDropZone.tsx` |
+| Custom hook | camelCase, prefix `use` | `useOcrExtraction.ts`, `useBeforeUnload.ts` |
+| Backend module | kebab-case | `ocr-pipeline.ts`, `ocr-text-utils.ts` |
+| Shared UI | PascalCase | `SharedUI.tsx` (chứa Badge, SuccessHero) |
+| Constants | camelCase file, UPPER_SNAKE export | `topics.ts` → `export const TOPICS = [...]` |
+| Types-only file | kebab-case | `ocr-types.ts` |
+
+---
+
+## Checklist trước khi merge
+
+```
+□ TypeScript pass: npx tsc --noEmit
+□ Không có file > 300 dòng (component) hoặc > 100 dòng (route handler)
+□ Không có hardcoded magic numbers — dùng named constants
+□ Mọi async fetch có AbortController hoặc timeout
+□ Không có silent catch — errors phải log hoặc report
+□ Shared constants import từ @/shared/constants/ — không duplicate inline
+□ Interactive elements có đủ accessibility attributes
+□ Handlers truyền xuống child components đều wrapped với useCallback
+□ Session persistence hoạt động đúng (save khi done/saving, clear khi idle/saved)
+```

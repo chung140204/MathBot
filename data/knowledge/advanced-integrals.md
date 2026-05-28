@@ -3,6 +3,8 @@
 ---
 [topic: INTEGRALS]
 [source: Vận dụng cao - Tích phân đặc biệt]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_tich_phan_dac_biet]
 
 Dạng: Tính tích phân bằng kỹ thuật đặc biệt.
 
@@ -20,6 +22,8 @@ Tương tự: $\int_0^{\pi/2} \frac{\sin^n x}{\sin^n x + \cos^n x} dx = \frac{\p
 ---
 [topic: INTEGRALS]
 [source: Vận dụng cao - Tích phân chứa tham số]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_tich_phan_chua_tham_so]
 
 Dạng: Tìm $m$ để $\int_a^b f(x, m) dx = k$.
 
@@ -38,6 +42,9 @@ Dạng khó hơn: Tìm $m$ để $S = \int_0^1 |x^2 - mx| dx$ nhỏ nhất
 ---
 [topic: INTEGRALS]
 [source: Vận dụng cao - Diện tích và thể tích phức tạp]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_dien_tich_va_the_tich_phuc_]
+[relatedTopics: FUNCTIONS, ANALYTIC_GEOMETRY]
 
 Diện tích giới hạn bởi nhiều đường:
 
@@ -57,6 +64,8 @@ $$V = \pi \int_a^b |[f(x)]^2 - [g(x)]^2| dx$$
 ---
 [topic: INTEGRALS]
 [source: Vận dụng cao - Tích phân từng phần nhiều lần]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_tich_phan_tung_phan_nhieu_l]
 
 Dạng: Tích phân cần từng phần 2-3 lần hoặc quay vòng.
 

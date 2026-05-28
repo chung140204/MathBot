@@ -3,6 +3,9 @@
 ---
 [topic: VOLUME]
 [source: THPT QG 2024 - VDC Thể tích khối chóp cắt]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2024_vdc_the_tich_khoi_chop_cat]
+[relatedTopics: SOLID_GEOMETRY]
 
 Bài: Cho hình chóp $S.ABCD$ có đáy $ABCD$ là hình vuông cạnh $a$, $SA \perp (ABCD)$, $SA = a\sqrt{2}$. Gọi $M$ là trung điểm $SC$. Tính thể tích tứ diện $ABMD$.
 
@@ -28,6 +31,9 @@ $M$ trung điểm $SC$ → $V_{ABMD} = \frac{1}{2}V_{ABCD.S} - ...$ (cần phân
 ---
 [topic: SOLID_GEOMETRY]
 [source: THPT QG 2023 - VDC Góc và khoảng cách không gian]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2023_vdc_goc_va_khoang_cach_khon]
+[relatedTopics: VOLUME]
 
 Bài: Cho hình chóp $S.ABC$ có $SA = SB = SC = a$, tam giác $ABC$ đều cạnh $a$. Tính khoảng cách từ $S$ đến mặt phẳng $(ABC)$.
 
@@ -43,6 +49,9 @@ $SH = a\sqrt{\frac{2}{3}} = \frac{a\sqrt{6}}{3}$
 ---
 [topic: VOLUME]
 [source: THPT QG 2022 - VDC Mặt cầu ngoại tiếp hình chóp]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2022_vdc_mat_cau_ngoai_tiep_hinh]
+[relatedTopics: SOLID_GEOMETRY]
 
 Bài: Cho hình chóp $S.ABC$ có $SA \perp (ABC)$, $SA = 3$, tam giác $ABC$ vuông tại $B$, $AB = 4$, $BC = 3$. Tính bán kính mặt cầu ngoại tiếp.
 
@@ -72,6 +81,8 @@ Phương pháp: Khi $SA \perp (ABC)$ → tâm cầu ngoại tiếp nằm trên t
 ---
 [topic: SOLID_GEOMETRY]
 [source: THPT QG 2020 - VDC Thiết diện và thể tích]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2020_vdc_thiet_dien_va_the_tich]
 
 Bài: Cho hình lập phương $ABCD.A'B'C'D'$ cạnh $a$. Mặt phẳng $(P)$ đi qua $A$, trung điểm $M$ của $BB'$, trung điểm $N$ của $DD'$. Tính diện tích thiết diện.
 

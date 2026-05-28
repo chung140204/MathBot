@@ -3,6 +3,9 @@
 ---
 [topic: SOLID_GEOMETRY]
 [source: Vận dụng cao - Khoảng cách giữa hai đường chéo nhau]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_khoang_cach_giua_hai_duong_]
+[relatedTopics: VOLUME]
 
 Phương pháp 1: Dựng mặt phẳng song song
 - Dựng mp $(P)$ chứa $d_1$ và song song $d_2$
@@ -20,6 +23,8 @@ $$d(d_1, d_2) = \frac{|\vec{AB} \cdot (\vec{u} \times \vec{v})|}{|\vec{u} \times
 ---
 [topic: SOLID_GEOMETRY]
 [source: Vận dụng cao - Góc nhị diện]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_goc_nhi_dien]
 
 Góc nhị diện: góc giữa 2 nửa mặt phẳng có chung cạnh (giao tuyến).
 
@@ -41,6 +46,8 @@ $$\cos\alpha = \frac{|\vec{n_1} \cdot \vec{n_2}|}{|\vec{n_1}||\vec{n_2}|}$$
 ---
 [topic: SOLID_GEOMETRY]
 [source: Vận dụng cao - Tọa độ hóa hình không gian]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_toa_do_hoa_hinh_khong_gian]
 
 Khi nào nên tọa độ hóa:
 - Hình chóp có cạnh vuông góc đáy ($SA \perp (ABC)$)
@@ -62,6 +69,9 @@ Tính khoảng cách từ $A$ đến mp $(SBC)$:
 ---
 [topic: VOLUME]
 [source: Vận dụng cao - Thể tích khối chóp có tham số]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_the_tich_khoi_chop_co_tham_]
+[relatedTopics: SOLID_GEOMETRY]
 
 Dạng: Tìm $m$ để thể tích hình chóp đạt GTLN/GTNN.
 
@@ -79,6 +89,8 @@ Nếu $h$ cố định → max $V$ ↔ max $S$
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: Vận dụng cao - Đường tròn và tiếp tuyến]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_duong_tron_va_tiep_tuyen]
 
 Dạng: Bài toán tiếp tuyến đường tròn phức tạp.
 
@@ -99,6 +111,8 @@ Ví dụ: Tìm đường tròn $(C)$ tiếp xúc $Ox$, đi qua $A(1, 2)$ và $B(
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: Vận dụng cao - Cực trị hình học phẳng]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_cuc_tri_hinh_hoc_phang]
 
 Dạng: Tìm GTLN/GTNN biểu thức hình học.
 

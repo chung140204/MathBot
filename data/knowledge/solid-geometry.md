@@ -3,6 +3,8 @@
 ---
 [topic: SOLID_GEOMETRY]
 [source: SGK Toán 12 - Quan hệ song song]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_quan_he_song_song]
 
 Đường thẳng song song mặt phẳng:
 - $d // (P) \Leftrightarrow d$ song song với 1 đường trong $(P)$
@@ -17,6 +19,8 @@ Hai mặt phẳng song song:
 ---
 [topic: SOLID_GEOMETRY]
 [source: SGK Toán 12 - Quan hệ vuông góc]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_quan_he_vuong_goc]
 
 Đường thẳng vuông góc mặt phẳng:
 - $d \perp (P) \Leftrightarrow d$ vuông góc với 2 đường cắt nhau trong $(P)$
@@ -32,6 +36,8 @@ Hai mặt phẳng vuông góc:
 ---
 [topic: SOLID_GEOMETRY]
 [source: SGK Toán 12 - Góc giữa đường và mặt phẳng]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_goc_giua_duong_va_mat_phang]
 
 Góc giữa đường thẳng $d$ và mặt phẳng $(P)$:
 - = góc giữa $d$ và hình chiếu $d'$ của $d$ lên $(P)$
@@ -51,6 +57,8 @@ Ví dụ: Chóp $S.ABC$, $SA \perp (ABC)$
 ---
 [topic: SOLID_GEOMETRY]
 [source: SGK Toán 12 - Góc giữa hai mặt phẳng]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_goc_giua_hai_mat_phang]
 
 Góc giữa 2 mặt phẳng $(P)$ và $(Q)$:
 - = góc giữa 2 đường thẳng cùng vuông góc giao tuyến, mỗi đường nằm trong 1 mp
@@ -66,6 +74,9 @@ Cách tìm:
 ---
 [topic: SOLID_GEOMETRY]
 [source: SGK Toán 12 - Khoảng cách]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_khoang_cach]
+[relatedTopics: VOLUME]
 
 Khoảng cách từ điểm đến mặt phẳng:
 - $d(M, (P))$ = độ dài đoạn vuông góc từ $M$ hạ lên $(P)$
@@ -81,6 +92,8 @@ Khoảng cách giữa đường thẳng và mặt phẳng song song:
 ---
 [topic: SOLID_GEOMETRY]
 [source: Toán 12 - Phương pháp tọa độ không gian]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_phap_toa_do_khong_gian]
 
 Hệ tọa độ Oxyz:
 
@@ -96,6 +109,8 @@ Tích có hướng: $\vec{a} \times \vec{b} = (a_2 b_3 - a_3 b_2, a_3 b_1 - a_1 
 ---
 [topic: SOLID_GEOMETRY]
 [source: Toán 12 - PT mặt phẳng và đường thẳng trong Oxyz]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_pt_mat_phang_va_duong_thang_tron]
 
 Phương trình mặt phẳng: $ax + by + cz + d = 0$
 - VTPT: $\vec{n} = (a, b, c)$
@@ -110,6 +125,8 @@ $$\sin\alpha = \frac{|\vec{u} \cdot \vec{n}|}{|\vec{u}||\vec{n}|}$$
 ---
 [topic: SOLID_GEOMETRY]
 [source: Toán 12 - Mặt cầu trong Oxyz]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_mat_cau_trong_oxyz]
 
 Phương trình mặt cầu tâm $I(a,b,c)$ bán kính $R$:
 $$(x-a)^2 + (y-b)^2 + (z-c)^2 = R^2$$
@@ -125,6 +142,8 @@ Mặt phẳng tiếp xúc mặt cầu tại $M(x_0, y_0, z_0)$:
 ---
 [topic: SOLID_GEOMETRY]
 [source: Toán 12 - Thiết diện]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_thiet_dien]
 
 Thiết diện (mặt cắt):
 - Là giao của mặt phẳng cắt với khối đa diện
@@ -142,6 +161,9 @@ Thiết diện có diện tích lớn nhất:
 ---
 [topic: SOLID_GEOMETRY]
 [source: Toán 12 - Mẹo thi: Hình không gian]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_hinh_khong_gian]
+[relatedTopics: VOLUME]
 
 Mẹo thi nhanh:
 

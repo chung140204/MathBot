@@ -3,6 +3,9 @@
 ---
 [topic: COMPLEX_NUMBERS]
 [source: Vận dụng cao - Tập hợp điểm trên mặt phẳng phức]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_tap_hop_diem_tren_mat_phang]
+[relatedTopics: ANALYTIC_GEOMETRY]
 
 Dạng: Tìm tập hợp điểm $M$ biểu diễn $z$ thỏa điều kiện.
 
@@ -20,6 +23,8 @@ Dạng cực trị: Tìm min/max $|z - a|$ khi $|z - b| = R$
 ---
 [topic: COMPLEX_NUMBERS]
 [source: Vận dụng cao - Phương trình số phức bậc cao]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_phuong_trinh_so_phuc_bac_ca]
 
 Dạng: Giải $z^n = w$ hoặc tìm $z$ thỏa điều kiện phức tạp.
 
@@ -39,6 +44,8 @@ Ví dụ: $z^3 = -8$
 ---
 [topic: EXPONENTIAL_LOG]
 [source: Vận dụng cao - Hệ phương trình mũ logarit]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_he_phuong_trinh_mu_logarit]
 
 Dạng: Giải hệ PT mũ-logarit.
 
@@ -56,6 +63,8 @@ $\begin{cases} 2^x + 2^y = 6 \\ x + y = 4 \end{cases}$
 ---
 [topic: EXPONENTIAL_LOG]
 [source: Vận dụng cao - Bất phương trình mũ logarit tham số]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_bat_phuong_trinh_mu_logarit]
 
 Dạng: Tìm $m$ để BPT $f(x, m) \geq 0$ đúng $\forall x$ (hoặc có nghiệm).
 
@@ -72,6 +81,8 @@ Ví dụ: Tìm $m$ để $\log_2(x^2 + 2) \leq m$ $\forall x \in [-1, 1]$
 ---
 [topic: EXPONENTIAL_LOG]
 [source: Vận dụng cao - Bài toán lãi suất kép nâng cao]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_bai_toan_lai_suat_kep_nang_]
 
 Bài toán tài chính:
 

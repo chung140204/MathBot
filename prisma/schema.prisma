@@ -22,10 +22,14 @@ model User {
   image        String?
   settings     Json?         @default("{}")
   updatedAt    DateTime      @updatedAt
-  chatSessions   ChatSession[]
-  examAttempts   ExamAttempt[]
-  studyProgress  StudyProgress[]
-  studyBookmarks StudyBookmark[]
+  chatSessions     ChatSession[]
+  examAttempts     ExamAttempt[]
+  studyProgress    StudyProgress[]
+  studyBookmarks   StudyBookmark[]
+  createdQuestions Question[]      @relation("CreatedQuestions")
+  ownedClassrooms  Classroom[]     @relation("ClassroomOwner")
+  classMemberships ClassMember[]
+  createdExamSets  ExamSet[]       @relation("ExamSetCreator")
 
   @@map("users")
 }
@@ -61,9 +65,13 @@ model Question {
   statementBImageUrl String?
   statementCImageUrl String?
   statementDImageUrl String?
+  createdById        String?
+  createdBy          User?          @relation("CreatedQuestions", fields: [createdById], references: [id], onDelete: SetNull)
   examAnswers        ExamAnswer[]
+  examSetQuestions   ExamSetQuestion[]
 
   @@index([topic, difficulty, isActive])
+  @@index([createdById])
   @@map("questions")
 }
 
@@ -77,10 +85,13 @@ model ExamAttempt {
   mode           ExamMode     @default(STANDARD)
   startedAt      DateTime     @default(now())
   submittedAt    DateTime     @default(now())
-  answers        ExamAnswer[]
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers            ExamAnswer[]
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classAssignmentId  String?
+  classAssignment    ClassAssignment?  @relation(fields: [classAssignmentId], references: [id], onDelete: SetNull)
 
   @@index([userId, submittedAt])
+  @@index([classAssignmentId])
   @@map("exam_attempts")
 }
 
@@ -131,13 +142,17 @@ model ChatMessage {
 }
 
 model KnowledgeChunk {
-  id        String                    @id @default(cuid())
-  content   String
-  topic     Topic
-  source    String
-  embedding Unsupported("vector(768)")?
-  createdAt DateTime                  @default(now())
+  id            String                    @id @default(cuid())
+  content       String
+  topic         Topic
+  source        String
+  difficulty    Difficulty?
+  subTopic      String?
+  relatedTopics Topic[]
+  embedding     Unsupported("vector(768)")?
+  createdAt     DateTime                  @default(now())
 
+  @@index([topic])
   @@map("knowledge_chunks")
 }
 
@@ -182,6 +197,7 @@ model StudyBookmark {
 
 enum UserRole {
   STUDENT
+  TEACHER
   ADMIN
 }
 
@@ -203,6 +219,83 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+model Classroom {
+  id          String            @id @default(cuid())
+  name        String
+  code        String            @unique
+  description String?
+  teacherId   String
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  teacher     User              @relation("ClassroomOwner", fields: [teacherId], references: [id], onDelete: Cascade)
+  members     ClassMember[]
+  assignments ClassAssignment[]
+
+  @@index([teacherId])
+  @@map("classrooms")
+}
+
+model ClassMember {
+  id          String    @id @default(cuid())
+  classroomId String
+  userId      String
+  joinedAt    DateTime  @default(now())
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, userId])
+  @@index([userId])
+  @@map("class_members")
+}
+
+model ExamSet {
+  id          String            @id @default(cuid())
+  title       String
+  description String?
+  createdById String
+  timeLimit   Int?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   User              @relation("ExamSetCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  questions   ExamSetQuestion[]
+  assignments ClassAssignment[]
+
+  @@index([createdById])
+  @@map("exam_sets")
+}
+
+model ExamSetQuestion {
+  id         String   @id @default(cuid())
+  examSetId  String
+  questionId String
+  sortOrder  Int      @default(0)
+  examSet    ExamSet  @relation(fields: [examSetId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examSetId, questionId])
+  @@index([examSetId, sortOrder])
+  @@map("exam_set_questions")
+}
+
+model ClassAssignment {
+  id           String        @id @default(cuid())
+  classroomId  String
+  examSetId    String
+  assignedAt   DateTime      @default(now())
+  dueAt        DateTime?
+  maxAttempts  Int?
+  isActive     Boolean       @default(true)
+  classroom    Classroom     @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  examSet      ExamSet       @relation(fields: [examSetId], references: [id], onDelete: Cascade)
+  examAttempts ExamAttempt[]
+
+  @@unique([classroomId, examSetId])
+  @@index([classroomId])
+  @@map("class_assignments")
 }
 
 enum Topic {

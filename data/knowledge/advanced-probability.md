@@ -3,6 +3,8 @@
 ---
 [topic: PROBABILITY]
 [source: Vận dụng cao - Xác suất có điều kiện nâng cao]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_xac_suat_co_dieu_kien_nang_]
 
 Dạng: Bài toán xác suất nhiều bước, rút không hoàn lại.
 
@@ -17,6 +19,8 @@ Dạng nâng cao: Rút lần lượt không hoàn lại
 ---
 [topic: PROBABILITY]
 [source: Vận dụng cao - Bài toán đếm có ràng buộc]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_bai_toan_dem_co_rang_buoc]
 
 Dạng: Đếm số cách sắp xếp/chọn có điều kiện ràng buộc.
 
@@ -34,6 +38,9 @@ Kỹ thuật chặn: Đếm cách chia $n$ vật vào $k$ nhóm
 ---
 [topic: PROBABILITY]
 [source: Vận dụng cao - Nhị thức Newton nâng cao]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_nhi_thuc_newton_nang_cao]
+[relatedTopics: SEQUENCES]
 
 Dạng: Tìm hệ số, số hạng trong khai triển nhị thức.
 
@@ -52,6 +59,8 @@ Ví dụ: Tìm số hạng không chứa $x$ trong $(x + \frac{2}{x^2})^6$
 ---
 [topic: PROBABILITY]
 [source: Vận dụng cao - Kỳ vọng và phương sai]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_ky_vong_va_phuong_sai]
 
 Dạng: Tính kỳ vọng/phương sai cho biến ngẫu nhiên phức tạp.
 

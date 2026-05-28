@@ -3,6 +3,8 @@
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: SGK Toán 12 - Phương trình đường thẳng]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_duong_thang]
 
 Phương trình đường thẳng trong Oxy:
 
@@ -21,6 +23,9 @@ $$\frac{x - x_1}{x_2 - x_1} = \frac{y - y_1}{y_2 - y_1}$$
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: SGK Toán 12 - Khoảng cách và góc]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_khoang_cach_va_goc]
+[relatedTopics: SOLID_GEOMETRY]
 
 Khoảng cách từ điểm $M(x_0, y_0)$ đến đường thẳng $ax + by + c = 0$:
 $$d(M, \Delta) = \frac{|ax_0 + by_0 + c|}{\sqrt{a^2 + b^2}}$$
@@ -34,6 +39,8 @@ $$\cos\alpha = \frac{|\vec{n_1} \cdot \vec{n_2}|}{|\vec{n_1}| \cdot |\vec{n_2}|}
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: SGK Toán 12 - Phương trình đường tròn]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_duong_tron]
 
 Phương trình đường tròn tâm $I(a,b)$, bán kính $R$:
 $$(x-a)^2 + (y-b)^2 = R^2$$
@@ -48,6 +55,8 @@ $$(x_0 - a)(x - x_0) + (y_0 - b)(y - y_0) = 0$$
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: SGK Toán 12 - Vị trí tương đối đường thẳng và đường tròn]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_vi_tri_tuong_doi_duong_thang_va_]
 
 Vị trí tương đối đường thẳng $\Delta$ và đường tròn $(C)$ tâm $I$ bán kính $R$:
 
@@ -65,6 +74,8 @@ Tiếp tuyến từ điểm $M$ ngoài đường tròn:
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: SGK Toán 12 - Phương trình elip]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_elip]
 
 Phương trình chính tắc elip: $\frac{x^2}{a^2} + \frac{y^2}{b^2} = 1$ ($a > b > 0$)
 
@@ -79,6 +90,8 @@ Tính chất tiêu điểm: $MF_1 + MF_2 = 2a$ (với mọi $M$ trên elip)
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: Toán 12 - Phương trình parabol và hyperbol]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_parabol_va_hyperbol]
 
 Parabol: $y^2 = 2px$ ($p > 0$)
 - Đỉnh: $O(0,0)$
@@ -94,6 +107,8 @@ Hyperbol: $\frac{x^2}{a^2} - \frac{y^2}{b^2} = 1$
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: Toán 12 - Bài toán quỹ tích]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_bai_toan_quy_tich]
 
 Các dạng quỹ tích thường gặp:
 
@@ -109,6 +124,8 @@ Ví dụ: Tìm quỹ tích trung điểm $M$ của $AB$ khi $A$ di chuyển trê
 ---
 [topic: ANALYTIC_GEOMETRY]
 [source: Toán 12 - Mẹo thi: Hình giải tích]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_hinh_giai_tich]
 
 Mẹo thi nhanh:
 

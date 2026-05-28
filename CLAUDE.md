@@ -83,9 +83,10 @@ mathbot/
 │   └── seed.ts
 │
 ├── src/
-│   ├── app/
+│   ├── app/                          ← Route files only (page/layout/route)
 │   │   ├── (auth)/                   ← Public routes: login, register
 │   │   ├── (dashboard)/              ← Protected routes: dashboard, profile
+│   │   ├── admin/                    ← Admin pages (page.tsx only)
 │   │   ├── exam/                     ← Exam taking + results
 │   │   ├── chat/                     ← AI chat interface
 │   │   └── api/
@@ -93,31 +94,42 @@ mathbot/
 │   │           ├── auth/
 │   │           ├── exam/
 │   │           ├── chat/
-│   │           └── analytics/
+│   │           ├── analytics/
+│   │           ├── knowledge/
+│   │           ├── study/
+│   │           └── admin/
 │   │
-│   ├── components/
-│   │   ├── ui/                       ← Shared: Button, Input, Card, Modal
-│   │   ├── exam/                     ← Exam-specific components
-│   │   ├── chat/                     ← Chat-specific components
-│   │   ├── analytics/                ← Chart and stat components
-│   │   └── MathRenderer.tsx          ← KaTeX renderer for LaTeX strings
+│   ├── features/                     ← Domain logic, co-located components + lib
+│   │   ├── auth/lib/                 auth.ts (NextAuth config)
+│   │   ├── ocr/
+│   │   │   ├── components/           UploadClient.tsx
+│   │   │   └── lib/                  ocr-prompt.ts, yolo-detect.ts, pdf-to-images.ts
+│   │   ├── exam/
+│   │   │   ├── components/           ExamQuestion, ExamSidebar, QuestionCard, ExamSetupModal, AIHintModal
+│   │   │   └── lib/                  scoring.ts, exam-generator.ts
+│   │   ├── chat/
+│   │   │   └── components/           ChatWindow, ChatSidebar, MessageBubble, MathInput, MathKeyboard, MathBlock, StepList, ResultBox
+│   │   ├── study/
+│   │   │   ├── components/           StudyChatPanel, StudyMathRenderer
+│   │   │   └── lib/                  daily.ts
+│   │   ├── admin/
+│   │   │   └── components/           DashboardClient, SettingsClient, UsersClient, ManualInputForm
+│   │   └── knowledge/
+│   │       └── lib/rag/              pipeline, search, embed, router, decompose, query-rewriter, rerank, hyde, prompts, types
 │   │
-│   ├── lib/
-│   │   ├── prisma.ts                 ← Prisma Client singleton
-│   │   ├── openai.ts                 ← OpenAI Client singleton
-│   │   ├── auth.ts                   ← NextAuth configuration
-│   │   ├── flags.ts                  ← Feature flag helpers
-│   │   ├── errors.ts                 ← AppError class + error registry
-│   │   └── rag/
-│   │       ├── embed.ts              ← Embedding creation
-│   │       ├── search.ts             ← pgvector similarity search
-│   │       ├── pipeline.ts           ← RAG orchestration
-│   │       └── prompts.ts            ← System prompt builders
+│   ├── shared/                       ← Cross-feature utilities
+│   │   ├── components/               MathRenderer.tsx, Providers.tsx, AdminSidebar.tsx
+│   │   ├── lib/                      db.ts (Prisma singleton), errors.ts
+│   │   ├── constants/                topics.ts, thpt-weights.ts
+│   │   └── types/                    next-auth.d.ts, react-katex.d.ts
 │   │
-│   ├── hooks/                        ← Custom React hooks (client-side only)
-│   ├── types/
-│   │   └── index.ts                  ← Shared TypeScript types and enums
 │   └── middleware.ts                 ← Auth guard for protected routes
+│
+├── scripts/
+│   ├── db/                           ← add-*.js schema scripts
+│   ├── seed/                         ← ingest-knowledge.ts, seed-study-*.ts
+│   ├── migration/                    ← apply-*.ts, fix-*.js, re-embed-chunks.ts
+│   └── test/                         ← check-db.ts, check-rag.ts, test-chatbot.ts
 │
 ├── tests/
 │   ├── unit/                         ← Vitest unit tests

@@ -3,6 +3,9 @@
 ---
 [topic: FUNCTIONS]
 [source: SGK Toán 12 - Sơ đồ khảo sát hàm số]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_so_do_khao_sat_ham_so]
+[relatedTopics: DERIVATIVES]
 
 Sơ đồ khảo sát hàm số:
 1. Tập xác định
@@ -18,6 +21,9 @@ Sơ đồ khảo sát hàm số:
 ---
 [topic: FUNCTIONS]
 [source: SGK Toán 12 - Hàm bậc 3]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_bac_3]
+[relatedTopics: DERIVATIVES]
 
 Hàm bậc 3: $y = ax^3 + bx^2 + cx + d$ $(a \neq 0)$
 
@@ -32,6 +38,9 @@ Hàm bậc 3: $y = ax^3 + bx^2 + cx + d$ $(a \neq 0)$
 ---
 [topic: FUNCTIONS]
 [source: SGK Toán 12 - Hàm bậc 4 trùng phương]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_bac_4_trung_phuong]
+[relatedTopics: DERIVATIVES]
 
 Hàm bậc 4 trùng phương: $y = ax^4 + bx^2 + c$ $(a \neq 0)$
 
@@ -46,6 +55,8 @@ Hàm bậc 4 trùng phương: $y = ax^4 + bx^2 + c$ $(a \neq 0)$
 ---
 [topic: FUNCTIONS]
 [source: SGK Toán 12 - Hàm phân thức bậc nhất/bậc nhất]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_phan_thuc_bac_nhat_bac_nhat]
 
 Hàm phân thức: $y = \frac{ax + b}{cx + d}$ $(c \neq 0, ad - bc \neq 0)$
 
@@ -61,6 +72,8 @@ Hàm phân thức: $y = \frac{ax + b}{cx + d}$ $(c \neq 0, ad - bc \neq 0)$
 ---
 [topic: FUNCTIONS]
 [source: SGK Toán 12 - Hàm phân thức bậc hai/bậc nhất]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_phan_thuc_bac_hai_bac_nhat]
 
 Hàm phân thức: $y = \frac{ax^2 + bx + c}{dx + e}$ $(d \neq 0)$
 
@@ -76,6 +89,9 @@ Cách khảo sát:
 ---
 [topic: FUNCTIONS]
 [source: Toán 12 - Nhận dạng đồ thị]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_nhan_dang_do_thi]
+[relatedTopics: DERIVATIVES]
 
 Nhận dạng đồ thị hàm số (dạng trắc nghiệm):
 
@@ -96,6 +112,9 @@ Hàm phân thức $y = \frac{ax+b}{cx+d}$:
 ---
 [topic: FUNCTIONS]
 [source: Toán 12 - Tương giao đồ thị với đường thẳng]
+[difficulty: APPLICATION]
+[subTopic: toan_12_tuong_giao_do_thi_voi_duong_than]
+[relatedTopics: DERIVATIVES]
 
 Số giao điểm đồ thị $y = f(x)$ với đường $y = m$:
 
@@ -113,6 +132,9 @@ Hàm bậc 3 (có CĐ, CT):
 ---
 [topic: FUNCTIONS]
 [source: Toán 12 - Biện luận phương trình chứa tham số]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_bien_luan_phuong_trinh_chua_tham]
+[relatedTopics: DERIVATIVES]
 
 Biện luận số nghiệm PT chứa tham số $m$:
 
@@ -128,6 +150,9 @@ Lưu ý: Nếu không tách được $m$, dùng phương pháp:
 ---
 [topic: FUNCTIONS]
 [source: Toán 12 - Mẹo thi: Hàm số]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_ham_so]
+[relatedTopics: DERIVATIVES]
 
 Mẹo thi nhanh cho hàm số:
 

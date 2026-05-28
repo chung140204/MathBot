@@ -3,6 +3,9 @@
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Nguyên hàm cơ bản]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_nguyen_ham_co_ban]
+[relatedTopics: DERIVATIVES]
 
 Bảng nguyên hàm cơ bản:
 - $\int 0 \, dx = C$
@@ -18,6 +21,9 @@ Bảng nguyên hàm cơ bản:
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Nguyên hàm mở rộng]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_nguyen_ham_mo_rong]
+[relatedTopics: DERIVATIVES]
 
 Nguyên hàm mở rộng (dạng hàm hợp):
 - $\int (ax+b)^n dx = \frac{(ax+b)^{n+1}}{a(n+1)} + C$
@@ -31,6 +37,8 @@ Quy tắc: $\int f(ax+b) dx = \frac{1}{a}F(ax+b) + C$
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Công thức Newton-Leibniz]
+[difficulty: RECOGNITION]
+[subTopic: toan_12_cong_thuc_newton_leibniz]
 
 Công thức Newton-Leibniz:
 $$\int_a^b f(x) dx = F(b) - F(a)$$
@@ -47,6 +55,8 @@ Tính chất tích phân:
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Phương pháp đổi biến]
+[difficulty: APPLICATION]
+[subTopic: toan_12_phuong_phap_doi_bien]
 
 Phương pháp đổi biến số:
 
@@ -64,6 +74,8 @@ Lưu ý với tích phân xác định: đổi cận khi đổi biến!
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Phương pháp tích phân từng phần]
+[difficulty: APPLICATION]
+[subTopic: toan_12_phuong_phap_tich_phan_tung_phan]
 
 Tích phân từng phần:
 $$\int u \, dv = uv - \int v \, du$$
@@ -84,6 +96,9 @@ Ví dụ thường gặp:
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Diện tích hình phẳng]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_dien_tich_hinh_phang]
+[relatedTopics: FUNCTIONS, ANALYTIC_GEOMETRY]
 
 Diện tích hình phẳng:
 
@@ -103,6 +118,9 @@ Lưu ý: Diện tích luôn dương! Phải dùng trị tuyệt đối.
 ---
 [topic: INTEGRALS]
 [source: SGK Toán 12 - Thể tích vật thể tròn xoay]
+[difficulty: APPLICATION]
+[subTopic: toan_12_the_tich_vat_the_tron_xoay]
+[relatedTopics: FUNCTIONS, VOLUME]
 
 Thể tích vật thể tròn xoay:
 
@@ -121,6 +139,8 @@ $$V = \pi \int_0^4 x \, dx = \pi \cdot \frac{x^2}{2}\Big|_0^4 = 8\pi$$
 ---
 [topic: INTEGRALS]
 [source: Toán 12 - Tích phân lượng giác]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_tich_phan_luong_giac]
 
 Tích phân hàm lượng giác:
 
@@ -137,6 +157,8 @@ Các dạng thường gặp:
 ---
 [topic: INTEGRALS]
 [source: Toán 12 - Mẹo thi: Tích phân]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_tich_phan]
 
 Mẹo thi nhanh cho tích phân:
 

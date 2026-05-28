@@ -3,6 +3,9 @@
 ---
 [topic: DERIVATIVES]
 [source: Vận dụng cao - Bài toán cực trị có tham số]
+[difficulty: ADVANCED]
+[subTopic: van_dung_cao_bai_toan_cuc_tri_co_tham_so]
+[relatedTopics: FUNCTIONS]
 
 Dạng: Tìm m để hàm $y = f(x, m)$ có cực đại, cực tiểu thỏa điều kiện.
 
@@ -21,6 +24,9 @@ Ví dụ: Tìm $m$ để $y = x^3 - 3mx + 2$ có cực đại, cực tiểu và 
 ---
 [topic: DERIVATIVES]
 [source: Vận dụng cao - Tiếp tuyến và khoảng cách]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_tiep_tuyen_va_khoang_cach]
+[relatedTopics: ANALYTIC_GEOMETRY]
 
 Dạng: Viết phương trình tiếp tuyến thỏa điều kiện khoảng cách, diện tích.
 
@@ -37,6 +43,8 @@ Ví dụ: Tiếp tuyến $y = \frac{1}{x}$ tạo tam giác nhỏ nhất với 2 
 ---
 [topic: DERIVATIVES]
 [source: Vận dụng cao - Đếm số nghiệm phương trình]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_dem_so_nghiem_phuong_trinh]
 
 Dạng: Tìm $m$ để phương trình $f(x) = g(m)$ có đúng $k$ nghiệm.
 
@@ -55,6 +63,8 @@ Mẹo: Nếu PT dạng $f(x) = m \cdot g(x)$ → chia 2 vế: $\frac{f(x)}{g(x)}
 ---
 [topic: DERIVATIVES]
 [source: Vận dụng cao - Min/Max biểu thức phức tạp]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_min_max_bieu_thuc_phuc_tap]
 
 Dạng: Tìm GTLN/GTNN của biểu thức phức tạp.
 
@@ -75,6 +85,9 @@ Ví dụ: Tìm min $P = \frac{x^2 + 2}{\sqrt{x^2 + 1}}$
 ---
 [topic: DERIVATIVES]
 [source: Vận dụng cao - Hàm hợp và đồ thị f'(x)]
+[difficulty: APPLICATION]
+[subTopic: van_dung_cao_ham_hop_va_do_thi_f_x]
+[relatedTopics: FUNCTIONS]
 
 Dạng: Cho đồ thị $f'(x)$, xét tính đơn điệu/cực trị của $g(x) = f(h(x))$.
 

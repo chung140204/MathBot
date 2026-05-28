@@ -3,6 +3,8 @@
 ---
 [topic: SOLID_GEOMETRY]
 [source: THPT QG 2024 - VDC Mặt phẳng và khoảng cách Oxyz]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2024_vdc_mat_phang_va_khoang_cac]
 
 Bài: Trong Oxyz, cho $A(1, 0, 0)$, $B(0, 2, 0)$, $C(0, 0, 3)$. Viết phương trình mặt phẳng $(P)$ song song $(ABC)$ và cách $(ABC)$ một khoảng $d = \frac{6}{7}$.
 
@@ -21,6 +23,8 @@ Vậy $(P)$: $6x + 3y + 2z = 0$ hoặc $6x + 3y + 2z - 12 = 0$.
 ---
 [topic: SOLID_GEOMETRY]
 [source: THPT QG 2023 - VDC Quỹ tích và tối ưu Oxyz]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2023_vdc_quy_tich_va_toi_uu_oxyz]
 
 Bài: Cho $A(1, 2, 3)$, $B(3, 2, 1)$. Tìm điểm $M$ trên $Oz$ sao cho $MA + MB$ nhỏ nhất.
 
@@ -51,6 +55,8 @@ Phương pháp: Đối xứng qua trục/mặt phẳng → BĐT tam giác.
 ---
 [topic: SOLID_GEOMETRY]
 [source: THPT QG 2022 - VDC Mặt cầu và mặt phẳng]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2022_vdc_mat_cau_va_mat_phang]
 
 Bài: Cho mặt cầu $(S): x^2 + y^2 + z^2 - 2x - 4y + 2z - 3 = 0$. Viết PT mặt phẳng $(P)$ đi qua $M(3, 1, -1)$, cắt $(S)$ theo giao tuyến là đường tròn có bán kính lớn nhất.
 
@@ -78,6 +84,8 @@ Phương pháp: $r = \sqrt{R^2 - d^2}$ → max $r$ ↔ min $d$ ↔ $(P)$ qua tâ
 ---
 [topic: SOLID_GEOMETRY]
 [source: THPT QG 2021 - VDC Tích có hướng và thể tích]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2021_vdc_tich_co_huong_va_the_ti]
 
 Bài: Cho $A(1, 0, 0)$, $B(0, 1, 0)$, $C(0, 0, 1)$, $D(1, 1, 1)$. Tính thể tích tứ diện $ABCD$.
 

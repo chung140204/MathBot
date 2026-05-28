@@ -3,6 +3,8 @@
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Tính chất lũy thừa]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_tinh_chat_luy_thua]
 
 Tính chất lũy thừa ($a > 0$):
 - $a^m \cdot a^n = a^{m+n}$
@@ -16,6 +18,8 @@ Tính chất lũy thừa ($a > 0$):
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Tính chất logarit]
+[difficulty: RECOGNITION]
+[subTopic: toan_12_tinh_chat_logarit]
 
 Tính chất logarit ($a > 0, a \neq 1, x > 0, y > 0$):
 - $\log_a 1 = 0$
@@ -34,6 +38,9 @@ Tính chất logarit ($a > 0, a \neq 1, x > 0, y > 0$):
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Hàm số mũ]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_so_mu]
+[relatedTopics: FUNCTIONS]
 
 Hàm số mũ $y = a^x$ ($a > 0, a \neq 1$):
 - TXĐ: $\mathbb{R}$, tập giá trị: $(0, +\infty)$
@@ -46,6 +53,9 @@ Hàm số mũ $y = a^x$ ($a > 0, a \neq 1$):
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Hàm số logarit]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_so_logarit]
+[relatedTopics: FUNCTIONS]
 
 Hàm số logarit $y = \log_a x$ ($a > 0, a \neq 1$):
 - TXĐ: $(0, +\infty)$, tập giá trị: $\mathbb{R}$
@@ -58,6 +68,8 @@ Hàm số logarit $y = \log_a x$ ($a > 0, a \neq 1$):
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Phương trình mũ]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_mu]
 
 Phương trình mũ:
 
@@ -74,6 +86,8 @@ Ví dụ: $4^x - 3 \cdot 2^x + 2 = 0$
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Phương trình logarit]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_phuong_trinh_logarit]
 
 Phương trình logarit:
 
@@ -91,6 +105,8 @@ Ví dụ: $\log_2^2 x - 3\log_2 x + 2 = 0$
 ---
 [topic: EXPONENTIAL_LOG]
 [source: SGK Toán 12 - Bất phương trình mũ và logarit]
+[difficulty: APPLICATION]
+[subTopic: toan_12_bat_phuong_trinh_mu_va_logarit]
 
 Bất phương trình mũ:
 - $a > 1$: $a^{f(x)} > a^{g(x)} \Leftrightarrow f(x) > g(x)$ (cùng chiều)
@@ -105,6 +121,8 @@ Lưu ý: Luôn kiểm tra điều kiện logarit (đối số > 0)!
 ---
 [topic: EXPONENTIAL_LOG]
 [source: Toán 12 - Mẹo thi: Mũ và Logarit]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_mu_va_logarit]
 
 Mẹo thi nhanh:
 

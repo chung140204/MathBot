@@ -3,6 +3,9 @@
 ---
 [topic: LIMITS]
 [source: SGK Toán 12 - Giới hạn dãy số]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_gioi_han_day_so]
+[relatedTopics: SEQUENCES]
 
 Giới hạn dãy số cơ bản:
 - $\lim \frac{1}{n^k} = 0$ (với $k > 0$)
@@ -18,6 +21,9 @@ $$\lim \frac{a_p n^p + ...}{b_q n^q + ...} = \begin{cases} 0 & \text{nếu } p <
 ---
 [topic: LIMITS]
 [source: SGK Toán 12 - Giới hạn hàm số]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_gioi_han_ham_so]
+[relatedTopics: FUNCTIONS]
 
 Giới hạn hàm số tại một điểm:
 $$\lim_{x \to a} f(x) = L$$
@@ -36,6 +42,8 @@ Giới hạn đặc biệt:
 ---
 [topic: LIMITS]
 [source: SGK Toán 12 - Giới hạn dạng vô định 0/0]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_gioi_han_dang_vo_dinh_0_0]
 
 Giới hạn dạng $\frac{0}{0}$:
 
@@ -53,6 +61,8 @@ Ví dụ: $\lim_{x \to 1} \frac{\sqrt{x} - 1}{x - 1} = \lim_{x \to 1} \frac{1}{\
 ---
 [topic: LIMITS]
 [source: SGK Toán 12 - Giới hạn dạng vô định ∞/∞]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_gioi_han_dang_vo_dinh]
 
 Giới hạn dạng $\frac{\infty}{\infty}$:
 
@@ -68,6 +78,8 @@ Quy tắc nhanh: $\lim_{x \to \infty} \frac{a_n x^n + ...}{b_m x^m + ...}$
 ---
 [topic: LIMITS]
 [source: SGK Toán 12 - Giới hạn có căn thức]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_gioi_han_co_can_thuc]
 
 Giới hạn dạng $\infty - \infty$ có căn:
 
@@ -84,6 +96,9 @@ Mẹo: Chia cho $x > 0$ (khi $x \to +\infty$): $\sqrt{x^2 + ax} = x\sqrt{1 + \fr
 ---
 [topic: LIMITS]
 [source: SGK Toán 12 - Hàm số liên tục]
+[difficulty: COMPREHENSION]
+[subTopic: toan_12_ham_so_lien_tuc]
+[relatedTopics: FUNCTIONS]
 
 Hàm số liên tục tại $x_0$: $\lim_{x \to x_0} f(x) = f(x_0)$
 
@@ -100,6 +115,8 @@ Hàm số liên tục trên đoạn $[a,b]$: liên tục tại mọi điểm tro
 ---
 [topic: LIMITS]
 [source: Toán 12 - Mẹo thi: Giới hạn]
+[difficulty: ADVANCED]
+[subTopic: toan_12_meo_thi_gioi_han]
 
 Mẹo thi nhanh cho giới hạn:
 

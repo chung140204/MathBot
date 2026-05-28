@@ -3,6 +3,9 @@
 ---
 [topic: DERIVATIVES]
 [source: THPT QG 2024 - VDC Hàm số đơn điệu có tham số]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2024_vdc_ham_so_don_dieu_co_tham]
+[relatedTopics: FUNCTIONS]
 
 Bài: Tìm tất cả giá trị $m$ để hàm số $y = x^3 - 3mx^2 + (3m^2 - 3)x + 1$ đồng biến trên $(0, +\infty)$.
 
@@ -27,6 +30,9 @@ Phương pháp: Giải $y' = 0$, phân tích vị trí nghiệm so với khoản
 ---
 [topic: DERIVATIVES]
 [source: THPT QG 2023 - VDC Số giao điểm đồ thị]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2023_vdc_so_giao_diem_do_thi]
+[relatedTopics: FUNCTIONS]
 
 Bài: Tìm $m$ để đường thẳng $y = m$ cắt đồ thị $y = |x^3 - 3x|$ tại 6 điểm phân biệt.
 
@@ -48,6 +54,9 @@ Phương pháp: Vẽ đồ thị $y = |f(x)|$ từ $f(x)$, đếm giao điểm t
 ---
 [topic: DERIVATIVES]
 [source: THPT QG 2022 - VDC GTLN GTNN trên đoạn có tham số]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2022_vdc_gtln_gtnn_tren_doan_co_]
+[relatedTopics: FUNCTIONS]
 
 Bài: Cho hàm số $f(x) = x^4 - 2x^2 + m$. Tìm $m$ để $\max_{[-2,3]} f(x) = 10$.
 
@@ -72,6 +81,9 @@ Phương pháp: Tính $f$ tại các điểm cực trị và đầu mút, so sá
 ---
 [topic: DERIVATIVES]
 [source: THPT QG 2024 - VDC Hàm hợp cho đồ thị f'(x)]
+[difficulty: ADVANCED]
+[subTopic: thpt_qg_2024_vdc_ham_hop_cho_do_thi_f_x]
+[relatedTopics: FUNCTIONS]
 
 Bài: Cho hàm $f(x)$ có đạo hàm $f'(x)$ liên tục, đồ thị $y = f'(x)$ như hình. Hỏi hàm $g(x) = f(x^2 - 2x)$ có bao nhiêu cực trị?
 
