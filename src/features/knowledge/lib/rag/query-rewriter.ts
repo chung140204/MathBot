@@ -8,6 +8,8 @@ const FOLLOW_UP_PATTERNS: RegExp[] = [
   /cách khác|phương pháp khác|cách khác đi|giải khác/i,
   /tại sao|vì sao|giải thích|không hiểu|ý là gì|rõ hơn|chi tiết hơn/i,
   /nếu thay|nếu đổi|thay đổi|với m\s*=|với a\s*=|khi x\s*=|nếu x\s*=/i,
+  /còn nếu|trong trường hợp|nếu thêm/i,
+  /làm sao để|phải làm gì|cách nào để/i,
 ];
 
 export function detectFollowUp(query: string): boolean {

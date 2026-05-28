@@ -13,7 +13,7 @@ export const chatRequestSchema = z.object({
   })).min(1),
   sessionId: z.string().nullable().optional(),
   imageBase64: z.string().nullable().optional(),
-  mode: z.enum(['fast', 'thinking']).optional().default('thinking'),
+  mode: z.enum(['fast', 'thinking', 'tutor']).optional().default('thinking'),
 });
 
 export type ChatStreamParams = z.infer<typeof chatRequestSchema>;
@@ -105,17 +105,17 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
   sessionId = sessionResult.id;
   const isNewSession = sessionResult.isNew;
 
-  const saveToDatabase = async (assistantContent: string): Promise<boolean> => {
+  const saveToDatabase = async (assistantContent: string): Promise<{ userMsgId: string; assistantMsgId: string } | null> => {
     try {
-      await Promise.all([
+      const [userMsg, assistantMsg] = await Promise.all([
         prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'user', content: lastUserMessage } }),
         prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'assistant', content: assistantContent } }),
       ]);
       await prisma.chatSession.update({ where: { id: sessionId! }, data: { updatedAt: new Date() } });
-      return true;
+      return { userMsgId: userMsg.id, assistantMsgId: assistantMsg.id };
     } catch (dbError) {
       console.error('[Chat] Failed to save messages to database:', dbError);
-      return false;
+      return null;
     }
   };
 
@@ -173,7 +173,7 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         send(`data: ${JSON.stringify({ event: 'sources', data: sourcesPayload })}\n\n`);
       }
 
-      const systemPrompt = { role: 'system' as const, content: buildSystemPrompt(chunks) };
+      const systemPrompt = { role: 'system' as const, content: buildSystemPrompt(chunks, mode) };
 
       const recentMessages = messages.slice(-maxHistory).map(msg => {
         if (msg.role === 'assistant' && msg.content.length > 1500) return { ...msg, content: msg.content.slice(0, 1500) + '\n...[lược bỏ]' };
@@ -197,6 +197,7 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       const modeConfig = {
         fast: { max_tokens: 3000, temperature: 0.3 },
         thinking: { max_tokens: 4096, temperature: 0.2 },
+        tutor: { max_tokens: 4096, temperature: 0.35 },
       }[mode];
 
       let chatClient: OpenAI;
@@ -314,7 +315,11 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
 
       if (fullResponse) {
         const saved = await saveToDatabase(fullResponse);
-        if (!saved) send(`data: ${JSON.stringify({ event: 'warning', message: 'Tin nhắn có thể chưa được lưu. Vui lòng kiểm tra lịch sử chat.' })}\n\n`);
+        if (saved) {
+          send(`data: ${JSON.stringify({ event: 'saved', userMessageId: saved.userMsgId, assistantMessageId: saved.assistantMsgId })}\n\n`);
+        } else {
+          send(`data: ${JSON.stringify({ event: 'warning', message: 'Tin nhắn có thể chưa được lưu. Vui lòng kiểm tra lịch sử chat.' })}\n\n`);
+        }
       }
       send('data: [DONE]\n\n');
       close();

@@ -39,23 +39,25 @@ export default function ChatWindow({
   const { messages, setMessages, streamingContent, thinkingContent, isThinking, thinkingExpanded, setThinkingExpanded, isStreaming, isSearching, thinkingSeconds, isStreamingRef, sessionCreatedDuringStreamRef, sendMessage, stopStreaming } = chat;
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [chatMode, setChatMode] = useState<'thinking' | 'fast'>('thinking');
+  const [chatMode, setChatMode] = useState<'thinking' | 'fast' | 'tutor'>('thinking');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load messages when session changes or streaming ends
+  // Load messages when user switches session
+  const justStreamedRef = useRef(false);
   useEffect(() => {
+    if (isStreaming) { justStreamedRef.current = true; return; }
+
+    // Skip fetch right after streaming ends — messages already in state with IDs from SSE
+    if (justStreamedRef.current) { justStreamedRef.current = false; return; }
+
     if (!sessionId) {
-      if (!isStreamingRef.current) setMessages([]);
+      setMessages([]);
       return;
     }
 
-    // Don't fetch history while streaming
-    if (isStreaming || isStreamingRef.current) return;
-
     // Skip history fetch if this session was just created during streaming
-    // (messages are already in state from the stream)
     if (sessionCreatedDuringStreamRef.current) {
       sessionCreatedDuringStreamRef.current = false;
       return;
@@ -162,6 +164,7 @@ export default function ChatWindow({
         isThinking={isThinking} thinkingContent={thinkingContent}
         thinkingExpanded={thinkingExpanded} setThinkingExpanded={setThinkingExpanded}
         thinkingSeconds={thinkingSeconds} isSearching={isSearching}
+        chatMode={chatMode}
       />
 
       {/* Input */}
@@ -183,6 +186,7 @@ export default function ChatWindow({
             {([
               { value: 'fast', label: 'Nhanh', icon: '⚡' },
               { value: 'thinking', label: 'Suy nghĩ sâu', icon: '🧠' },
+              { value: 'tutor', label: 'Gia sư', icon: '👨‍🏫' },
             ] as const).map((m) => (
               <button
                 key={m.value}

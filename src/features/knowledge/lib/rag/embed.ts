@@ -12,6 +12,7 @@ const nvidiaClient = new OpenAI({
 });
 
 const NVIDIA_EMBED_MODEL = process.env.EMBED_MODEL || 'nvidia/nv-embedqa-e5-v5';
+const EMBED_MAX_CHARS = 2000;
 
 // ── Embedding Cache (in-memory LRU) ──────────────────────────────────
 const EMBED_CACHE_MAX = 500;
@@ -25,7 +26,7 @@ interface EmbedCacheEntry {
 const embedCache = new Map<string, EmbedCacheEntry>();
 
 function getCachedEmbedding(text: string): number[] | null {
-  const key = text.slice(0, 2000);
+  const key = text.slice(0, EMBED_MAX_CHARS);
   const entry = embedCache.get(key);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) {
@@ -39,7 +40,7 @@ function getCachedEmbedding(text: string): number[] | null {
 }
 
 function setCachedEmbedding(text: string, embedding: number[]): void {
-  const key = text.slice(0, 2000);
+  const key = text.slice(0, EMBED_MAX_CHARS);
   if (embedCache.size >= EMBED_CACHE_MAX) {
     const oldest = embedCache.keys().next().value;
     if (oldest !== undefined) embedCache.delete(oldest);
@@ -53,7 +54,7 @@ async function geminiEmbed(text: string): Promise<number[]> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      content: { parts: [{ text: text.slice(0, 2000) }] },
+      content: { parts: [{ text: text.slice(0, EMBED_MAX_CHARS) }] },
       outputDimensionality: 768,
     }),
   });
@@ -71,7 +72,7 @@ async function geminiEmbed(text: string): Promise<number[]> {
 async function nvidiaEmbed(text: string): Promise<number[]> {
   const response = await nvidiaClient.embeddings.create({
     model: NVIDIA_EMBED_MODEL,
-    input: text.slice(0, 500),
+    input: text.slice(0, EMBED_MAX_CHARS),
     encoding_format: 'float',
     input_type: 'query',
   } as any);

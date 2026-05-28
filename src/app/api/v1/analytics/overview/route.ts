@@ -39,9 +39,9 @@ export async function GET() {
         SELECT q."topic",
                COUNT(ea."id")::bigint AS total_questions,
                COALESCE(SUM(ea."score"), 0)::float AS correct_score
-        FROM "ExamAnswer" ea
-        JOIN "Question" q ON ea."questionId" = q."id"
-        JOIN "ExamAttempt" att ON ea."examAttemptId" = att."id"
+        FROM "exam_answers" ea
+        JOIN "questions" q ON ea."questionId" = q."id"
+        JOIN "exam_attempts" att ON ea."examAttemptId" = att."id"
         WHERE att."userId" = ${userId}
         GROUP BY q."topic"
       `,
@@ -71,7 +71,7 @@ export async function GET() {
       // 5. Streak — only distinct dates, no answers
       prisma.$queryRaw<Array<{ practice_date: string }>>`
         SELECT DISTINCT TO_CHAR("submittedAt", 'YYYY-MM-DD') AS practice_date
-        FROM "ExamAttempt"
+        FROM "exam_attempts"
         WHERE "userId" = ${userId}
         ORDER BY practice_date DESC
       `,

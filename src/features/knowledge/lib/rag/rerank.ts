@@ -3,12 +3,13 @@ import { KnowledgeChunkResult, RankedChunk } from './types';
 function computeKeywordScore(query: string, content: string): number {
   const queryWords = query
     .toLowerCase()
+    .normalize('NFC')
     .split(/\s+/)
     .filter((w) => w.length > 1);
 
   if (queryWords.length === 0) return 0;
 
-  const contentLower = content.toLowerCase();
+  const contentLower = content.toLowerCase().normalize('NFC');
   const matchCount = queryWords.filter((word) => contentLower.includes(word)).length;
 
   return Math.min(matchCount / queryWords.length, 1);
@@ -71,7 +72,7 @@ export function mergeAndRerank(
   const diverse: RankedChunk[] = [];
   for (const chunk of filtered) {
     const count = sourceCount.get(chunk.source) ?? 0;
-    if (count < 2) {
+    if (count < 3) {
       diverse.push(chunk);
       sourceCount.set(chunk.source, count + 1);
     }

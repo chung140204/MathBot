@@ -23,9 +23,23 @@ interface MessageBubbleProps {
   onFeedback?: (feedback: 'up' | 'down') => void;
   onRegenerate?: () => void;
   isLastAssistant?: boolean;
+  chatMode?: 'thinking' | 'fast' | 'tutor';
+  onQuickAction?: (text: string) => void;
 }
 
-export default function MessageBubble({ message, isStreaming = false, onEdit, onFeedback, onRegenerate, isLastAssistant }: MessageBubbleProps) {
+const TUTOR_ACTIONS = [
+  { key: 'hint', label: 'Gợi ý thêm', icon: '🔍', message: 'Gợi ý thêm cho bài này' },
+  { key: 'similar', label: 'Bài tương tự', icon: '📝', message: 'Cho em một bài tương tự để luyện tập' },
+  { key: 'explain', label: 'Giải thích thêm', icon: '❓', message: 'Giải thích thêm bước vừa rồi' },
+  { key: 'answer', label: 'Cho đáp án', icon: '✅', message: 'Cho em đáp án đầy đủ bài này' },
+] as const;
+
+const DEFAULT_ACTIONS = [
+  { key: 'similar', label: 'Bài tương tự', icon: '📝', message: 'Cho em một bài tương tự' },
+  { key: 'altMethod', label: 'Cách khác', icon: '🔄', message: 'Giải bài này bằng cách khác' },
+] as const;
+
+export default function MessageBubble({ message, isStreaming = false, onEdit, onFeedback, onRegenerate, isLastAssistant, chatMode, onQuickAction }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -118,6 +132,20 @@ export default function MessageBubble({ message, isStreaming = false, onEdit, on
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                   </button>
                 )}
+              </div>
+            )}
+            {!isStreaming && onQuickAction && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {(chatMode === 'tutor' ? TUTOR_ACTIONS : DEFAULT_ACTIONS).map((action) => (
+                  <button
+                    key={action.key}
+                    onClick={() => onQuickAction(action.message)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 border border-gray-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all"
+                  >
+                    <span>{action.icon}</span>
+                    <span>{action.label}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>

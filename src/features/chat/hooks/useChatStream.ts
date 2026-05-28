@@ -26,6 +26,7 @@ export function useChatStream(opts: {
   const [pendingSources, setPendingSources] = useState<SourceItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
+  const savedIdsRef = useRef<{ userMessageId: string; assistantMessageId: string } | null>(null);
   const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,7 +43,7 @@ export function useChatStream(opts: {
   const sendMessage = useCallback(async (
     text: string,
     imageBase64: string | null,
-    chatMode: 'thinking' | 'fast',
+    chatMode: 'thinking' | 'fast' | 'tutor',
     overrideHistory?: Message[],
   ) => {
     if ((!text.trim() && !imageBase64) || isStreamingRef.current) return;
@@ -67,6 +68,7 @@ export function useChatStream(opts: {
     abortControllerRef.current = new AbortController();
     let accumulated = '';
     setPendingSources([]);
+    savedIdsRef.current = null;
 
     const resetSseTimeout = () => {
       if (sseTimeoutRef.current) clearTimeout(sseTimeoutRef.current);
@@ -105,6 +107,7 @@ export function useChatStream(opts: {
             if (parsed.event === 'session') { sessionCreatedDuringStreamRef.current = true; onSessionCreated(parsed.sessionId); }
             else if (parsed.event === 'rag_searching') { setIsSearching(true); }
             else if (parsed.event === 'sources') { setIsSearching(false); setPendingSources(parsed.data || []); }
+            else if (parsed.event === 'saved') { savedIdsRef.current = { userMessageId: parsed.userMessageId, assistantMessageId: parsed.assistantMessageId }; }
             else if (parsed.event === 'thinking_start') { setIsThinking(true); setThinkingExpanded(true); }
             else if (parsed.event === 'thinking_end') {
               setIsThinking(false); setThinkingExpanded(false);
@@ -121,7 +124,14 @@ export function useChatStream(opts: {
         }
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: accumulated, sources: pendingSources }]);
+      const ids = savedIdsRef.current;
+      setMessages(prev => {
+        const updated = ids
+          ? prev.map((msg, idx) => idx === prev.length - 1 && msg.role === 'user' ? { ...msg, id: ids.userMessageId } : msg)
+          : prev;
+        return [...updated, { role: 'assistant' as const, content: accumulated, sources: pendingSources, id: ids?.assistantMessageId }];
+      });
+      savedIdsRef.current = null;
       setStreamingContent(''); setThinkingContent(''); setIsThinking(false); setThinkingExpanded(false); setIsSearching(false);
       onMessageSent();
     } catch (err: unknown) {

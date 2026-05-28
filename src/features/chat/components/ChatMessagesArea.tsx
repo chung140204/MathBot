@@ -35,12 +35,13 @@ interface ChatMessagesAreaProps {
   setThinkingExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   thinkingSeconds: number;
   isSearching: boolean;
+  chatMode: 'thinking' | 'fast' | 'tutor';
 }
 
 export function ChatMessagesArea({
   scrollRef, isLoadingHistory, showWelcome, firstName, messages, setMessages,
   handleSend, handleEditSubmit, isStreaming, streamingContent,
-  isThinking, thinkingContent, thinkingExpanded, setThinkingExpanded, thinkingSeconds, isSearching,
+  isThinking, thinkingContent, thinkingExpanded, setThinkingExpanded, thinkingSeconds, isSearching, chatMode,
 }: ChatMessagesAreaProps) {
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
@@ -85,6 +86,8 @@ export function ChatMessagesArea({
                     const lastUserMsg = [...messages].reverse().find(msg => msg.role === 'user');
                     if (lastUserMsg) { setMessages(prev => prev.slice(0, -1)); handleSend(lastUserMsg.content, null, messages.slice(0, -1)); }
                   } : undefined}
+                  chatMode={chatMode}
+                  onQuickAction={(text) => handleSend(text)}
                 />
               );
             })}

@@ -3,12 +3,12 @@ import { searchSimilarChunks, searchByKeywords } from './search';
 import { classifyTopic, smartClassifyTopic } from './router';
 import { decomposeQuery } from './decompose';
 import { mergeAndRerank } from './rerank';
-import { rewriteQuery } from './query-rewriter';
+import { rewriteQuery, detectFollowUp } from './query-rewriter';
 import { generateHypotheticalAnswer } from './hyde';
 import type { KnowledgeChunkResult } from './types';
 
 export interface RagSearchOptions {
-  mode?: 'fast' | 'thinking';
+  mode?: 'fast' | 'thinking' | 'tutor';
   history?: Array<{ role: string; content: string }>;
 }
 
@@ -36,7 +36,7 @@ export async function ragSearch(
         searchSimilarChunks(embedding, undefined, undefined, topic),
         searchByKeywords(userMessage, undefined, topic),
       ]);
-      const chunks = mergeAndRerank([vectorResults], keywordResults, topic, userMessage, 2);
+      const chunks = mergeAndRerank([vectorResults], keywordResults, topic, userMessage, 3);
       console.log(`[RAG] Fast mode: ${chunks.length} chunks`);
       return { chunks };
     } catch (error) {
@@ -46,42 +46,45 @@ export async function ragSearch(
   }
 
   try {
-    // === PARALLEL LLM CALLS ===
-    // rewrite, HyDE, classify are independent — run on original userMessage in parallel.
-    // Only decomposeQuery needs the (potentially) rewritten query.
-    console.time('[RAG] parallel-llm');
+    console.time('[RAG] llm-calls');
 
-    const rewritePromise =
-      options?.history && options.history.length >= 2
-        ? rewriteQuery(userMessage, options.history)
-        : Promise.resolve({ originalQuery: userMessage, rewrittenQuery: userMessage, isFollowUp: false as const });
-
-    const hydePromise =
-      userMessage.length >= 15
-        ? generateHypotheticalAnswer(userMessage)
-        : Promise.resolve(null);
-
-    const classifyPromise = smartClassifyTopic(userMessage);
-
-    const [rewriteResult, hydeText, topic] = await Promise.all([
-      rewritePromise,
-      hydePromise,
-      classifyPromise,
-    ]);
-
-    console.timeEnd('[RAG] parallel-llm');
+    // Step 1: Determine if follow-up — affects parallelization strategy
+    const isFollowUp =
+      options?.history && options.history.length >= 2 && detectFollowUp(userMessage);
 
     let ragQuery = userMessage;
     let rewrittenQuery: string | undefined;
-    if (rewriteResult.isFollowUp) {
-      ragQuery = rewriteResult.rewrittenQuery;
-      rewrittenQuery = rewriteResult.rewrittenQuery;
-      console.log('[RAG] Query rewritten:', userMessage, '→', ragQuery);
+    let hydeText: string | null = null;
+    let topic: string | null = null;
+
+    if (isFollowUp) {
+      // Follow-up: rewrite FIRST, then HyDE+classify on rewritten query
+      const rewriteResult = await rewriteQuery(userMessage, options!.history!);
+      if (rewriteResult.isFollowUp) {
+        ragQuery = rewriteResult.rewrittenQuery;
+        rewrittenQuery = rewriteResult.rewrittenQuery;
+        console.log('[RAG] Query rewritten:', userMessage, '→', ragQuery);
+      }
+
+      // Now HyDE + classify run on the rewritten query (correct context)
+      [hydeText, topic] = await Promise.all([
+        ragQuery.length >= 15 ? generateHypotheticalAnswer(ragQuery) : Promise.resolve(null),
+        smartClassifyTopic(ragQuery),
+      ]);
+    } else {
+      // Not follow-up: all 3 run in parallel on original (fast path)
+      const [hydeResult, classifyResult] = await Promise.all([
+        userMessage.length >= 15 ? generateHypotheticalAnswer(userMessage) : Promise.resolve(null),
+        smartClassifyTopic(userMessage),
+      ]);
+      hydeText = hydeResult;
+      topic = classifyResult;
     }
 
+    console.timeEnd('[RAG] llm-calls');
     if (hydeText) console.log(`[RAG] HyDE generated: ${hydeText.length} chars`);
 
-    // Decompose uses rewritten query for sub-query splitting
+    // Step 2: Decompose uses rewritten query for sub-query splitting
     const decomposed = decomposeQuery(ragQuery);
 
     // Step 3: Embed — HyDE text (if available) + sub-queries
@@ -108,14 +111,15 @@ export async function ragSearch(
       ragQuery,
     );
 
-    // Confidence gate: if best chunk score is too low, skip context entirely
-    const minConfidence = parseFloat(process.env.RAG_CONFIDENCE_THRESHOLD || '0.28');
-    if (chunks.length > 0 && chunks[0].finalScore < minConfidence) {
-      console.log(`[RAG] Low confidence (${chunks[0].finalScore.toFixed(2)} < ${minConfidence}), skipping context`);
+    // Step 6: Confidence gate — filter chunks below threshold
+    const minConfidence = parseFloat(process.env.RAG_CONFIDENCE_THRESHOLD || '0.30');
+    const confidentChunks = chunks.filter(c => c.finalScore >= minConfidence);
+    if (confidentChunks.length === 0 && chunks.length > 0) {
+      console.log(`[RAG] No confident chunks (best: ${chunks[0].finalScore.toFixed(2)} < ${minConfidence}), skipping context`);
       return { chunks: [], rewrittenQuery };
     }
 
-    return { chunks, rewrittenQuery };
+    return { chunks: confidentChunks, rewrittenQuery };
   } catch (error) {
     console.error('[RAG] Pipeline error, falling back to no-context:', error);
     return { chunks: [] };
