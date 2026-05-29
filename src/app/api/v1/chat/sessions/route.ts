@@ -75,6 +75,35 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const userId = session.user.id;
+
+  try {
+    const { sessionId, title } = await request.json();
+    if (!sessionId || !title?.trim()) {
+      return NextResponse.json({ error: 'Missing sessionId or title' }, { status: 400 });
+    }
+
+    const chatSession = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+    if (!chatSession || chatSession.userId !== userId) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    await prisma.chatSession.update({
+      where: { id: sessionId },
+      data: { title: title.trim().slice(0, 100) },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error renaming session:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
   

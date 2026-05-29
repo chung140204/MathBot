@@ -1,25 +1,130 @@
+import { TOPIC_LABEL } from '@/shared/constants/topics';
+import type { Topic } from '@prisma/client';
+
 interface ChunkForPrompt {
   content: string;
   topic: string;
   source: string;
+  difficulty?: string;
+}
+
+// Compact long-term learning profile injected into the system prompt so the
+// tutor "remembers" the student across sessions. All fields optional —
+// a missing profile renders an empty section and behaves exactly as before.
+export interface StudentProfileForPrompt {
+  studentName?: string | null;
+  level?: string | null; // "trung bình" | "khá" | "giỏi"
+  weakTopics?: string[]; // Topic enum values
+  strongTopics?: string[]; // Topic enum values
+  lastStudied?: string | null;
+  recurringErrors?: string | null;
+  goals?: string | null;
+  summary?: string | null;
 }
 
 export function buildSystemPrompt(
   chunks: ChunkForPrompt[],
   mode?: 'fast' | 'thinking' | 'tutor',
+  profile?: StudentProfileForPrompt | null,
 ): string {
-  if (mode === 'tutor') return buildTutorSystemPrompt(chunks);
-  return buildSolverSystemPrompt(chunks);
+  if (mode === 'tutor') return buildTutorSystemPrompt(chunks, profile);
+  return buildSolverSystemPrompt(chunks, profile);
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────
 
+// Persona is intentionally warm and human. Brand name stays "MathBot" but the
+// voice is that of a patient personal tutor, not a tool.
+const PERSONA =
+  'Bạn là MathBot — gia sư toán riêng, đồng hành lâu dài cùng học sinh THPT Việt Nam ôn thi đại học (THPT Quốc gia). ' +
+  'Hãy nói chuyện ấm áp, kiên nhẫn và gần gũi như một anh/chị gia sư thật: gọi học sinh là "em", xưng "mình/thầy", ' +
+  'động viên tự nhiên, ghi nhớ rằng đây là quá trình học cùng nhau qua nhiều buổi chứ không phải một lần hỏi đáp máy móc.';
+
+function topicLabel(topic: string): string {
+  return TOPIC_LABEL[topic as Topic] ?? topic;
+}
+
+// Renders a short "HỒ SƠ HỌC SINH" block (capped ~600 chars) so the tutor can
+// personalise tone, difficulty and references. Returns '' when nothing useful.
+function buildProfileSection(profile?: StudentProfileForPrompt | null): string {
+  if (!profile) return '';
+  const lines: string[] = [];
+  if (profile.studentName) lines.push(`- Tên học sinh: ${profile.studentName} (hãy gọi em bằng tên khi phù hợp)`);
+  if (profile.level) lines.push(`- Trình độ hiện tại: ${profile.level}`);
+  if (profile.weakTopics && profile.weakTopics.length > 0) {
+    lines.push(`- Chủ đề còn yếu: ${profile.weakTopics.slice(0, 3).map(topicLabel).join(', ')}`);
+  }
+  if (profile.strongTopics && profile.strongTopics.length > 0) {
+    lines.push(`- Chủ đề đã vững: ${profile.strongTopics.slice(0, 3).map(topicLabel).join(', ')}`);
+  }
+  if (profile.lastStudied) lines.push(`- Buổi trước học: ${profile.lastStudied}`);
+  if (profile.recurringErrors) lines.push(`- Lỗi hay mắc: ${profile.recurringErrors}`);
+  if (profile.goals) lines.push(`- Mục tiêu: ${profile.goals}`);
+  if (profile.summary) lines.push(`- Ghi chú: ${profile.summary}`);
+
+  if (lines.length === 0) return '';
+
+  let body = lines.join('\n');
+  if (body.length > 600) body = body.slice(0, 597) + '...';
+
+  return `=====================
+HỒ SƠ HỌC SINH (chỉ bạn biết — đừng đọc lại nguyên văn cho em)
+=====================
+${body}
+
+→ Dựa vào hồ sơ này để cá nhân hóa: nhắc lại buổi học trước một cách tự nhiên, chú ý hơn ở chủ đề em còn yếu, và điều chỉnh độ khó/giọng điệu cho phù hợp trình độ.
+
+`;
+}
+
+// Adaptivity guidance driven by the injected profile (prompt-level, no code branching).
+const ADAPTIVITY_RULES = `=====================
+THÍCH NGHI THEO TRÌNH ĐỘ
+=====================
+
+- Nếu hồ sơ cho thấy trình độ "trung bình" → giải thích kỹ hơn, dùng ví dụ dễ, chia nhỏ từng bước.
+- Nếu trình độ "khá/giỏi" → đi nhanh hơn, gợi ý mở rộng, đặt câu hỏi thử thách.
+- Với chủ đề em còn yếu → kiên nhẫn hơn, scaffold nhiều hơn, kiểm tra hiểu bài kỹ.
+- Nếu chưa có hồ sơ (học sinh mới) → mặc định giải thích rõ ràng, vừa phải.`;
+
+const DIFFICULTY_LABEL_VN: Record<string, string> = {
+  RECOGNITION: 'Nhận biết',
+  COMPREHENSION: 'Thông hiểu',
+  APPLICATION: 'Vận dụng',
+  ADVANCED: 'Vận dụng cao',
+};
+
+function extractMethod(content: string): string | null {
+  const m = content.match(/^Phương pháp\s*:\s*(.+)$/m);
+  return m ? m[1].trim() : null;
+}
+
 function buildContextSection(chunks: ChunkForPrompt[], verb: string): string {
   if (chunks.length === 0) return '';
+  // Difficulty/method hints are on by default; RAG_VDC_PROMPT_HINTS=false → original output.
+  const hints = process.env.RAG_VDC_PROMPT_HINTS !== 'false';
+
   const numbered = chunks
-    .map((c, i) => `[Tài liệu ${i + 1} — ${c.topic} — ${c.source}]\n${c.content}`)
+    .map((c, i) => {
+      let header = `[Tài liệu ${i + 1} — ${c.topic} — ${c.source}`;
+      if (hints && c.difficulty && DIFFICULTY_LABEL_VN[c.difficulty]) {
+        header += ` — Mức độ: ${DIFFICULTY_LABEL_VN[c.difficulty]}`;
+      }
+      header += ']';
+      if (hints) {
+        const method = extractMethod(c.content);
+        if (method) return `${header}\n→ Phương pháp mẫu: ${method}\n${c.content}`;
+      }
+      return `${header}\n${c.content}`;
+    })
     .join('\n\n---\n\n');
-  return `\n=====================\nTÀI LIỆU THAM KHẢO — ĐỌC TRƯỚC KHI ${verb}\n=====================\n⚠️ BẮT BUỘC: Kiểm tra tài liệu bên dưới trước khi ${verb.toLowerCase()}. Nếu tài liệu có nội dung liên quan → PHẢI sử dụng và trích dẫn "(Tài liệu X)". Nếu tài liệu không liên quan → ${verb.toLowerCase()} bằng kiến thức THPT chuẩn.\n\n${numbered}\n\n=====================\n`;
+
+  const advancedHint =
+    hints && chunks.some((c) => c.difficulty === 'ADVANCED')
+      ? '⚠️ Có ví dụ VẬN DỤNG CAO ở trên — hãy ưu tiên áp dụng đúng phương pháp/hướng giải của ví dụ tương tự đó.\n\n'
+      : '';
+
+  return `\n=====================\nTÀI LIỆU THAM KHẢO — ĐỌC TRƯỚC KHI ${verb}\n=====================\n⚠️ BẮT BUỘC: Kiểm tra tài liệu bên dưới trước khi ${verb.toLowerCase()}. Nếu tài liệu có nội dung liên quan → PHẢI sử dụng và trích dẫn "(Tài liệu X)". Nếu tài liệu không liên quan → ${verb.toLowerCase()} bằng kiến thức THPT chuẩn.\n\n${advancedHint}${numbered}\n\n=====================\n`;
 }
 
 const LATEX_RULES = `=====================
@@ -60,12 +165,15 @@ FORMAT STREAMING
 
 // ── Solver prompt (existing behavior) ─────────────────────────────────
 
-function buildSolverSystemPrompt(chunks: ChunkForPrompt[]): string {
+function buildSolverSystemPrompt(chunks: ChunkForPrompt[], profile?: StudentProfileForPrompt | null): string {
   const contextSection = buildContextSection(chunks, 'GIẢI');
+  const profileSection = buildProfileSection(profile);
 
-  return `Bạn là MathBot — trợ lý giải toán chuyên sâu cho học sinh THPT Việt Nam, chuyên ôn thi đại học (THPT Quốc gia).
+  return `${PERSONA}
+
+Ở chế độ này em cần lời giải nhanh, đầy đủ — hãy giải trực tiếp nhưng vẫn giữ giọng thân thiện, gần gũi.
 ${contextSection}
-=====================
+${profileSection}=====================
 VAI TRÒ VÀ NĂNG LỰC
 =====================
 
@@ -100,6 +208,8 @@ ${LANGUAGE_RULES}
 ${FORMAT_RULES}
 
 ${LATEX_RULES}
+
+${ADAPTIVITY_RULES}
 
 =====================
 CẤU TRÚC TRẢ LỜI
@@ -153,21 +263,27 @@ QUY TẮC
 
 // ── Tutor prompt (Socratic guidance) ──────────────────────────────────
 
-function buildTutorSystemPrompt(chunks: ChunkForPrompt[]): string {
+function buildTutorSystemPrompt(chunks: ChunkForPrompt[], profile?: StudentProfileForPrompt | null): string {
   const contextSection = buildContextSection(chunks, 'HƯỚNG DẪN');
+  const profileSection = buildProfileSection(profile);
 
-  return `Bạn là MathBot — gia sư toán riêng cho học sinh THPT Việt Nam, chuyên ôn thi đại học (THPT Quốc gia).
+  return `${PERSONA}
 ${contextSection}
-=====================
-VAI TRÒ: GIA SƯ (KHÔNG PHẢI MÁY GIẢI BÀI)
+${profileSection}=====================
+VAI TRÒ: GIA SƯ ĐỒNG HÀNH
 =====================
 
-Bạn là một gia sư toán giỏi, kiên nhẫn và thân thiện. Mục tiêu của bạn là GIÚP HỌC SINH TỰ GIẢI ĐƯỢC BÀI, không phải giải hộ.
+Bạn là một gia sư toán giỏi, kiên nhẫn và thân thiện. Mục tiêu là GIÚP HỌC SINH TỰ HIỂU VÀ TỰ GIẢI ĐƯỢC BÀI, không chỉ đưa đáp án.
 
-⚠️ QUY TẮC VÀNG: KHÔNG BAO GIỜ đưa ra lời giải đầy đủ ngay lập tức. Thay vào đó, hướng dẫn từng bước.
+⚠️ QUY TẮC VÀNG — BIẾT "ĐỌC Ý" HỌC SINH:
+- Mặc định: hướng dẫn từng bước theo phương pháp Socratic (đặt câu hỏi gợi mở, để em tự nghĩ).
+- NHƯNG hãy như một gia sư thật, đọc đúng ý em muốn:
+  • Nếu em rõ ràng muốn đáp án ("cho đáp án", "giải luôn đi", "giải giúp em", "đang gấp", "không có thời gian") → GIẢI ĐẦY ĐỦ ngay với giọng ấm áp, rồi hỏi lại "em hiểu chỗ nào chưa, có cần mình giải thích kỹ bước nào không?".
+  • Nếu em muốn tự làm, đang dò bài, hoặc gửi bài để kiểm tra → giữ vai gợi ý từng bước, đừng giải hộ.
+- Tuyệt đối KHÔNG cứng nhắc từ chối giải khi em thật sự cần đáp án — điều đó làm em khó chịu.
 
 =====================
-QUY TRÌNH HƯỚNG DẪN (BẮT BUỘC)
+QUY TRÌNH HƯỚNG DẪN (khi em muốn tự làm)
 =====================
 
 Khi học sinh gửi một bài toán, thực hiện theo thứ tự sau:
@@ -244,6 +360,15 @@ GIỌNG ĐIỆU
 - Động viên khi học sinh sai: "Không sao, sai là bình thường!", "Gần đúng rồi, thử lại nhé!"
 - Câu trả lời ngắn gọn, tập trung — KHÔNG quá 300 từ mỗi lượt (trừ khi đưa lời giải đầy đủ)
 - TRÁNH: giọng máy móc, liệt kê khô khan, phản hồi quá dài
+
+=====================
+NHỚ NGỮ CẢNH (NHƯ GIA SƯ THẬT)
+=====================
+
+- Nếu HỒ SƠ HỌC SINH có "Buổi trước học" và đây là lượt đầu của một cuộc trò chuyện mới → có thể mở đầu bằng cách nhắc lại tự nhiên ("Lần trước mình học [chủ đề], hôm nay em muốn luyện tiếp hay sang phần mới?"). Đừng gượng ép, chỉ nhắc khi hợp lý.
+- Tham chiếu lỗi hay mắc của em để nhắc nhở nhẹ nhàng khi gặp lại tình huống tương tự.
+
+${ADAPTIVITY_RULES}
 
 ${LANGUAGE_RULES}
 

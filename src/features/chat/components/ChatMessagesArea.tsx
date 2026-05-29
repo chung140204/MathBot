@@ -1,6 +1,9 @@
 'use client';
 
 import MessageBubble from './MessageBubble';
+import { TOPIC_LABEL } from '@/shared/constants/topics';
+import type { Topic } from '@prisma/client';
+import type { StudentProfileSummary } from './ChatWindow';
 
 interface SourceItem { source: string; topic: string; similarity: number; }
 interface Message {
@@ -18,6 +21,16 @@ const SUGGESTIONS = [
   { text: 'Tính xác suất bài toán tổ hợp', icon: '🎲' },
 ];
 
+// Topic-aware suggestions when the student has a profile, padded with defaults.
+function buildSuggestions(profile?: StudentProfileSummary | null) {
+  if (!profile?.weakTopics?.length) return SUGGESTIONS;
+  const weak = profile.weakTopics.slice(0, 2).map((t) => {
+    const label = TOPIC_LABEL[t as Topic] ?? t;
+    return { text: `Ôn lại ${label}: cho em một bài cơ bản để luyện`, icon: '📚' };
+  });
+  return [...weak, ...SUGGESTIONS].slice(0, 4);
+}
+
 interface ChatMessagesAreaProps {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   isLoadingHistory: boolean;
@@ -25,7 +38,7 @@ interface ChatMessagesAreaProps {
   firstName: string;
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  handleSend: (text: string, imageBase64?: string | null, overrideHistory?: Message[]) => void;
+  handleSend: (text: string, imageBase64?: string | null, overrideHistory?: Message[], replaceFromMessageId?: string | null) => void;
   handleEditSubmit: (index: number, newContent: string) => void;
   isStreaming: boolean;
   streamingContent: string;
@@ -36,13 +49,16 @@ interface ChatMessagesAreaProps {
   thinkingSeconds: number;
   isSearching: boolean;
   chatMode: 'thinking' | 'fast' | 'tutor';
+  profile?: StudentProfileSummary | null;
 }
 
 export function ChatMessagesArea({
   scrollRef, isLoadingHistory, showWelcome, firstName, messages, setMessages,
   handleSend, handleEditSubmit, isStreaming, streamingContent,
-  isThinking, thinkingContent, thinkingExpanded, setThinkingExpanded, thinkingSeconds, isSearching, chatMode,
+  isThinking, thinkingContent, thinkingExpanded, setThinkingExpanded, thinkingSeconds, isSearching, chatMode, profile,
 }: ChatMessagesAreaProps) {
+  const suggestions = buildSuggestions(profile);
+  const isReturning = !!profile?.lastStudied;
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
       <div className="max-w-4xl mx-auto">
@@ -53,13 +69,24 @@ export function ChatMessagesArea({
         ) : showWelcome ? (
           <div className="flex flex-col items-center text-center pt-16 pb-8">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-black mb-4" style={{ background: 'linear-gradient(135deg, #059669, #0891b2)' }}>M</div>
-            <h2 className="text-xl font-bold mb-1" style={{ color: '#0f172a' }}>Xin chào, {firstName}!</h2>
-            <p className="text-sm mb-2" style={{ color: '#475569' }}>Hỏi bất kỳ bài Toán THPT nào — tôi giải từng bước rõ ràng.</p>
+            {isReturning ? (
+              <>
+                <h2 className="text-xl font-bold mb-1" style={{ color: '#0f172a' }}>Chào em {firstName}, gặp lại nhé!</h2>
+                <p className="text-sm mb-2" style={{ color: '#475569' }}>
+                  Lần trước mình học <strong>{profile!.lastStudied}</strong> — hôm nay em muốn luyện tiếp hay sang chủ đề mới?
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-xl font-bold mb-1" style={{ color: '#0f172a' }}>Xin chào, {firstName}!</h2>
+                <p className="text-sm mb-2" style={{ color: '#475569' }}>Mình là gia sư toán của em — gửi bài hoặc hỏi bất kỳ điều gì, mình cùng em đi từng bước nhé.</p>
+              </>
+            )}
             <div className="flex items-center gap-3 mb-8 text-[11px] text-gray-400 font-medium">
               <span>📸 Gửi ảnh bài toán</span><span>·</span><span>📚 Tra cứu tài liệu</span><span>·</span><span>🧠 Suy nghĩ từng bước</span>
             </div>
             <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
-              {SUGGESTIONS.map((s) => (
+              {suggestions.map((s) => (
                 <button key={s.text} onClick={() => handleSend(s.text)}
                   className="text-left text-xs px-3 py-2.5 rounded-xl transition-colors flex items-start gap-2"
                   style={{ background: '#fff', border: '0.5px solid #e2e8f0', color: '#475569' }}
@@ -83,8 +110,12 @@ export function ChatMessagesArea({
                   } : undefined}
                   isLastAssistant={i === lastAssistantIdx}
                   onRegenerate={i === lastAssistantIdx ? () => {
-                    const lastUserMsg = [...messages].reverse().find(msg => msg.role === 'user');
-                    if (lastUserMsg) { setMessages(prev => prev.slice(0, -1)); handleSend(lastUserMsg.content, null, messages.slice(0, -1)); }
+                    // Re-run from the last user question: resend it with history up to
+                    // (but not including) it, and tell the server to replace from that
+                    // message onward so we don't duplicate the question or keep the old answer.
+                    let li = -1;
+                    for (let k = messages.length - 1; k >= 0; k--) { if (messages[k].role === 'user') { li = k; break; } }
+                    if (li >= 0) handleSend(messages[li].content, null, messages.slice(0, li), messages[li].id);
                   } : undefined}
                   chatMode={chatMode}
                   onQuickAction={(text) => handleSend(text)}

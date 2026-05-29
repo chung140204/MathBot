@@ -6,7 +6,7 @@ import { toast } from 'react-hot-toast';
 interface SourceItem { source: string; topic: string; similarity: number; }
 interface Message { role: 'user' | 'assistant'; content: string; sources?: SourceItem[]; feedback?: 'up' | 'down' | null; id?: string; }
 
-const SSE_TIMEOUT_MS = 120_000; // 2 minutes
+const SSE_TIMEOUT_MS = 600_000; // 10 minutes (testing)
 
 export function useChatStream(opts: {
   sessionId: string | null;
@@ -45,6 +45,7 @@ export function useChatStream(opts: {
     imageBase64: string | null,
     chatMode: 'thinking' | 'fast' | 'tutor',
     overrideHistory?: Message[],
+    replaceFromMessageId?: string | null,
   ) => {
     if ((!text.trim() && !imageBase64) || isStreamingRef.current) return;
 
@@ -67,6 +68,7 @@ export function useChatStream(opts: {
 
     abortControllerRef.current = new AbortController();
     let accumulated = '';
+    let rafPending = false;
     setPendingSources([]);
     savedIdsRef.current = null;
 
@@ -80,7 +82,7 @@ export function useChatStream(opts: {
       const res = await fetch('/chat/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, sessionId, userId, imageBase64, mode: chatMode }),
+        body: JSON.stringify({ messages: history, sessionId, userId, imageBase64, mode: chatMode, replaceFromMessageId: replaceFromMessageId ?? null }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -118,7 +120,8 @@ export function useChatStream(opts: {
               setIsSearching(false);
               if (thinkingTimerRef.current) { clearInterval(thinkingTimerRef.current); thinkingTimerRef.current = null; }
               accumulated += parsed.content;
-              setStreamingContent(accumulated);
+              // Batch streaming updates via rAF to reduce re-renders
+              if (!rafPending) { rafPending = true; requestAnimationFrame(() => { setStreamingContent(accumulated); rafPending = false; }); }
             }
           } catch { /* partial JSON chunk */ }
         }

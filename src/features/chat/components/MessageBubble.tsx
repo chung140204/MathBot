@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { MarkdownRenderer } from '@/features/chat/lib/message-render';
 
 interface SourceItem {
@@ -88,7 +89,7 @@ export default function MessageBubble({ message, isStreaming = false, onEdit, on
                   <MarkdownRenderer content={message.content} />
                 </div>
                 <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg transition-colors bg-gray-50 hover:bg-gray-100" title="Sao chép" onClick={() => navigator.clipboard.writeText(message.content.replace(/^!\[.*?\]\(.*?\)\n\n/, ''))}>
+                  <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg transition-colors bg-gray-50 hover:bg-gray-100" title="Sao chép" onClick={() => { navigator.clipboard.writeText(message.content.replace(/^!\[.*?\]\(.*?\)\n\n/, '')); toast.success('Đã sao chép!'); }}>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   </button>
                   <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg transition-colors bg-gray-50 hover:bg-gray-100" title="Chỉnh sửa" onClick={startEditing}>
@@ -124,7 +125,7 @@ export default function MessageBubble({ message, isStreaming = false, onEdit, on
               <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => onFeedback('up')} className={`p-1.5 rounded-lg text-sm transition-colors ${message.feedback === 'up' ? 'text-green-500 bg-green-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title="Hữu ích">👍</button>
                 <button onClick={() => onFeedback('down')} className={`p-1.5 rounded-lg text-sm transition-colors ${message.feedback === 'down' ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title="Chưa hữu ích">👎</button>
-                <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg transition-colors hover:bg-gray-100" title="Sao chép" onClick={() => navigator.clipboard.writeText(message.content)}>
+                <button className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg transition-colors hover:bg-gray-100" title="Sao chép" onClick={() => { navigator.clipboard.writeText(message.content); toast.success('Đã sao chép!'); }}>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 </button>
                 {isLastAssistant && onRegenerate && (

@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react';
 import MathInput from './MathInput';
 import { useChatStream } from '@/features/chat/hooks/useChatStream';
 import { ChatMessagesArea } from './ChatMessagesArea';
+import { TOPIC_LABEL } from '@/shared/constants/topics';
+import type { Topic } from '@prisma/client';
 
 interface SourceItem {
   source: string;
@@ -18,6 +20,14 @@ interface Message {
   sources?: SourceItem[];
   feedback?: 'up' | 'down' | null;
   id?: string;
+}
+
+export interface StudentProfileSummary {
+  level: string | null;
+  weakTopics: string[];
+  strongTopics: string[];
+  lastStudied: string | null;
+  sessionCount: number;
 }
 
 interface ChatWindowProps {
@@ -39,8 +49,9 @@ export default function ChatWindow({
   const { messages, setMessages, streamingContent, thinkingContent, isThinking, thinkingExpanded, setThinkingExpanded, isStreaming, isSearching, thinkingSeconds, isStreamingRef, sessionCreatedDuringStreamRef, sendMessage, stopStreaming } = chat;
   const [input, setInput] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [chatMode, setChatMode] = useState<'thinking' | 'fast' | 'tutor'>('thinking');
+  const [chatMode, setChatMode] = useState<'thinking' | 'fast' | 'tutor'>('tutor');
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [profile, setProfile] = useState<StudentProfileSummary | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -88,21 +99,30 @@ export default function ChatWindow({
     return () => controller.abort();
   }, [sessionId, isStreaming]);
 
-  // Improved Auto-scroll for dynamic content (Math, Images)
+  // Load the long-term learning profile once for a personalised greeting
   useEffect(() => {
+    if (!userId) return;
+    const controller = new AbortController();
+    fetch('/api/v1/chat/profile', { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => { if (data?.profile) setProfile(data.profile); })
+      .catch((err) => { if (err.name !== 'AbortError') console.error(err); });
+    return () => controller.abort();
+  }, [userId]);
+
+  // Smart auto-scroll — only scroll if user is near bottom
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (!isNearBottom) return;
+
     const scrollToBottom = () => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTo({
-          top: scrollRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-      }
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     };
 
-    // Immediate scroll on data change
     scrollToBottom();
-
-    // Secondary scroll after a short delay for Math/Image rendering
     const timer = setTimeout(scrollToBottom, 100);
     return () => clearTimeout(timer);
   }, [messages, streamingContent, isThinking]);
@@ -119,8 +139,8 @@ export default function ChatWindow({
 
   // sendMessage and stopStreaming now come from useChatStream hook
 
-  const handleSend = (text: string, imageBase64: string | null = selectedImage, overrideHistory?: Message[]) => {
-    sendMessage(text, imageBase64, chatMode, overrideHistory);
+  const handleSend = (text: string, imageBase64: string | null = selectedImage, overrideHistory?: Message[], replaceFromMessageId?: string | null) => {
+    sendMessage(text, imageBase64, chatMode, overrideHistory, replaceFromMessageId);
     setInput('');
     setSelectedImage(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -129,7 +149,8 @@ export default function ChatWindow({
 
   const handleEditSubmit = (index: number, newContent: string) => {
     const newHistory = messages.slice(0, index);
-    handleSend(newContent, null, newHistory);
+    // Replace from the edited message onward so old rows don't linger in DB.
+    handleSend(newContent, null, newHistory, messages[index]?.id);
   };
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -151,8 +172,15 @@ export default function ChatWindow({
     <div className="flex-1 flex flex-col h-full" style={{ background: '#f8fafc' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-6" style={{ height: 52, background: '#fff', borderBottom: '0.5px solid #e2e8f0', flexShrink: 0 }}>
-        <span className="font-semibold text-sm" style={{ color: '#0f172a' }}>{sessionId ? 'Cuộc trò chuyện' : 'MathBot AI'}</span>
-        <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#d1fae5', color: '#059669' }}>AI đang hoạt động</span>
+        <span className="font-semibold text-sm" style={{ color: '#0f172a' }}>{sessionId ? 'Cuộc trò chuyện' : 'MathBot · Gia sư của bạn'}</span>
+        <div className="flex items-center gap-2">
+          {profile?.level && (
+            <span className="hidden sm:inline-flex text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#2563eb' }} title="Hồ sơ học tập của em">
+              📘 {profile.level}{profile.weakTopics?.[0] ? ` · cần ôn ${TOPIC_LABEL[profile.weakTopics[0] as Topic] ?? profile.weakTopics[0]}` : ''}
+            </span>
+          )}
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: '#d1fae5', color: '#059669' }}>Đang lắng nghe</span>
+        </div>
       </div>
 
       {/* Messages */}
@@ -164,7 +192,7 @@ export default function ChatWindow({
         isThinking={isThinking} thinkingContent={thinkingContent}
         thinkingExpanded={thinkingExpanded} setThinkingExpanded={setThinkingExpanded}
         thinkingSeconds={thinkingSeconds} isSearching={isSearching}
-        chatMode={chatMode}
+        chatMode={chatMode} profile={profile}
       />
 
       {/* Input */}

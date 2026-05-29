@@ -41,9 +41,60 @@ function balanceSingleDollars(line: string): string {
   return line + '$';
 }
 
+// LaTeX multi-line environments KaTeX can render inside $$ (align/align* → aligned).
+const MATH_ENVS = 'aligned|align\\*?|cases|gathered|array|matrix|bmatrix|pmatrix|vmatrix';
+
+// LaTeX command names (used to tell a bare-math line from Vietnamese prose).
+const LATEX_WORDS = new Set([
+  'cdot','times','div','pm','mp','frac','dfrac','tfrac','sqrt','left','right','geq','leq','neq',
+  'approx','equiv','Rightarrow','Leftrightarrow','Leftarrow','rightarrow','leftarrow','to','infty',
+  'cap','cup','setminus','in','notin','subset','supset','bar','hat','vec','overrightarrow','overline',
+  'sum','prod','int','oint','lim','sin','cos','tan','cot','sec','csc','arcsin','arccos','arctan',
+  'log','ln','exp','alpha','beta','gamma','delta','epsilon','varepsilon','zeta','eta','theta','vartheta',
+  'iota','kappa','lambda','mu','nu','xi','rho','varphi','phi','chi','psi','omega','pi','sigma','tau',
+  'Delta','Omega','Gamma','Sigma','Lambda','Phi','Pi','Theta','angle','perp','parallel','mathbb','mathrm',
+  'mathcal','text','begin','end','cases','aligned','binom','quad','qquad','cdots','ldots','dots','vdots',
+  'forall','exists','partial','nabla','circ','prime','pm','mp','land','lor','neg','Big','big','Bigg',
+]);
+
+// True when a line is essentially a bare LaTeX equation (a LaTeX command sits
+// OUTSIDE any $...$ span, and there are no real Vietnamese prose words). Weaker
+// models emit these half-delimited, e.g. "a \cdot b = 0 $\Rightarrow$ ...".
+function isPureMathLine(line: string): boolean {
+  const hadMathSpan = /\$[^$\n]+\$/.test(line);
+  const outside = line
+    .replace(/\$\$[\s\S]*?\$\$/g, ' ')
+    .replace(/\$[^$\n]*\$/g, ' ')
+    .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname)\{[^}]*\}/g, ' '); // Vietnamese inside \text{} is not prose
+  const hasBareCmd = /\\[a-zA-Z]/.test(outside);
+  const hasMathOps = /[=<>≤≥]|[A-Za-z0-9]\^|[A-Za-z0-9]_|\|[^|]+\|/.test(outside);
+  // Treat as math only if there's bare LaTeX, or a $-span alongside bare math operators.
+  if (!hasBareCmd && !(hadMathSpan && hasMathOps)) return false;
+  const words = (outside.match(/[A-Za-zÀ-ỹ]{3,}/g) || []).filter((w) => !LATEX_WORDS.has(w));
+  return words.length === 0; // pure math: no Vietnamese prose words left
+}
+
 export function normalizeContent(content: string): string {
   if (!content) return '';
-  let result = content
+  let result = content;
+
+  // Pass 0: normalize multi-line LaTeX environments. Weaker models emit
+  // \begin{aligned}...\end{aligned} unwrapped (no $$) and/or with stray $ inside,
+  // which breaks remark-math (rendered as raw text). Convert each to a clean
+  // $$-wrapped block (strip inner $, map align→aligned) and protect it with a
+  // placeholder so the line-based fixes below don't mangle it.
+  const blocks: string[] = [];
+  result = result.replace(
+    new RegExp(`\\s*\\$\{0,2}\\s*\\\\begin\\{(${MATH_ENVS})\\}([\\s\\S]*?)\\\\end\\{\\1\\}\\s*\\$\{0,2}\\s*`, 'g'),
+    (_m, env: string, body: string) => {
+      const e = /^align/.test(env) ? 'aligned' : env;
+      const inner = body.replace(/\$/g, '');
+      blocks.push(`$$\n\\begin{${e}}${inner}\n\\end{${e}}\n$$`);
+      return `\n\n\x01MB${blocks.length - 1}\x01\n\n`;
+    },
+  );
+
+  result = result
     .replace(/\\\[/g, '$$$$')
     .replace(/\\\]/g, '$$$$')
     .replace(/\\\(/g, '$')
@@ -52,7 +103,22 @@ export function normalizeContent(content: string): string {
     .replace(/\\tag\{[^}]*\}/g, '')
     .replace(/(?<!\$)\\(Longleftrightarrow|Leftrightarrow|Rightarrow|Leftarrow|implies|iff)/g, '$\\$1$')
     .replace(/\bundefined\b/g, '');
+
+  // Protect display-math blocks ($$...$$, possibly multi-line) BEFORE the per-line
+  // fixes below — otherwise the bare-math-line wrapper would re-wrap their inner
+  // content and break the fences. Also trims fence trailing spaces and isolates
+  // each block as its own paragraph (blank lines) so remark-math parses it.
+  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_m, inner: string) => {
+    blocks.push(`$$\n${String(inner).trim()}\n$$`);
+    return `\n\n\x01MB${blocks.length - 1}\x01\n\n`;
+  });
+
   result = result.split('\n').map(line => {
+    const trimmed = line.trim();
+    // Bare equation line (LaTeX command outside $, no prose words) → wrap whole line in $$.
+    if (trimmed && !trimmed.includes('\x01') && isPureMathLine(trimmed)) {
+      return '$$' + trimmed.replace(/\$/g, ' ').replace(/[ \t]+/g, ' ').trim() + '$$';
+    }
     if (!line.includes('$') && /\\(?:frac|sqrt|int|sum|prod|lim|sin|cos|tan|log|ln)\{/.test(line)) {
       line = wrapRawLatexInLine(line);
     }
@@ -60,6 +126,9 @@ export function normalizeContent(content: string): string {
   }).join('\n');
   const doubleDollarCount = (result.match(/\$\$/g) || []).length;
   if (doubleDollarCount % 2 === 1) result += '\n$$';
+
+  // Re-insert the protected environment blocks (already clean $$-wrapped).
+  result = result.replace(/\x01MB(\d+)\x01/g, (_m, i) => blocks[Number(i)] ?? '');
   return result;
 }
 
@@ -91,7 +160,7 @@ export const MarkdownRenderer = ({ content }: { content: string }) => {
       {textContent && (
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeKatex]}
+          rehypePlugins={[[rehypeKatex, { throwOnError: false, errorColor: '#dc2626' }]]}
           components={{
             img: ({ node, ...props }) => {
               if (!props.src) return null;

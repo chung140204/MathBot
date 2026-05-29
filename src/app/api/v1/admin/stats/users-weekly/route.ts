@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
-import { subDays, startOfDay, format } from 'date-fns';
+import { subDays, format } from 'date-fns';
+
+const DAY_LABELS: Record<string, string> = {
+  Mon: 'T2', Tue: 'T3', Wed: 'T4', Thu: 'T5', Fri: 'T6', Sat: 'T7', Sun: 'CN',
+};
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -11,36 +15,29 @@ export async function GET() {
   }
 
   try {
-    const last7Days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), i)).reverse();
-    
-    const results = [];
-    for (const date of last7Days) {
-      try {
-        const start = startOfDay(date);
-        const end = new Date(start);
-        end.setDate(end.getDate() + 1);
+    const since = subDays(new Date(), 6);
+    since.setHours(0, 0, 0, 0);
 
-        const count = await prisma.user.count({
-          where: {
-            createdAt: { gte: start, lt: end },
-          },
-        });
+    const rows = await prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+      SELECT TO_CHAR("createdAt", 'YYYY-MM-DD') AS day, COUNT(*)::bigint AS count
+      FROM users
+      WHERE "createdAt" >= ${since}
+      GROUP BY day
+      ORDER BY day ASC
+    `;
 
-        // Convert to Vietnamese day labels
-        const dayNames: { [key: string]: string } = {
-          'Mon': 'T2', 'Tue': 'T3', 'Wed': 'T4', 'Thu': 'T5', 'Fri': 'T6', 'Sat': 'T7', 'Sun': 'CN'
-        };
-        const dayLabel = dayNames[format(date, 'iii')] || format(date, 'iii');
+    const countByDay = new Map(rows.map(r => [r.day, Number(r.count)]));
 
-        results.push({ day: dayLabel, count });
-      } catch (err) {
-        console.error(`[Admin Weekly Stats] Error fetching for ${date}:`, err);
-        results.push({ day: format(date, 'iii'), count: 0 });
-      }
-    }
+    const results = Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(new Date(), 6 - i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const dayLabel = DAY_LABELS[format(date, 'iii')] ?? format(date, 'iii');
+      return { day: dayLabel, count: countByDay.get(dateStr) ?? 0 };
+    });
 
     return NextResponse.json({ data: results });
   } catch (error: unknown) {
+    console.error('[Admin Weekly Stats] Error:', error);
     return NextResponse.json({ data: [] });
   }
 }

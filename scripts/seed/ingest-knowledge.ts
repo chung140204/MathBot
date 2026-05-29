@@ -57,6 +57,8 @@ interface ParsedChunk {
   difficulty: string | null;
   subTopic: string | null;
   relatedTopics: string[];
+  embedKey: string | null;
+  status: string | null;
 }
 
 function topicFromFilename(filename: string): string {
@@ -81,6 +83,8 @@ function parseMarkdownFile(filePath: string): ParsedChunk[] {
     let difficulty: string | null = null;
     let subTopic: string | null = null;
     let relatedTopics: string[] = [];
+    let embedKey: string | null = null;
+    let status: string | null = null;
 
     for (const line of lines) {
       const topicMatch = line.match(/^\[topic:\s*(.+?)\]$/);
@@ -88,6 +92,8 @@ function parseMarkdownFile(filePath: string): ParsedChunk[] {
       const difficultyMatch = line.match(/^\[difficulty:\s*(.+?)\]$/);
       const subTopicMatch = line.match(/^\[subTopic:\s*(.+?)\]$/);
       const relatedTopicsMatch = line.match(/^\[relatedTopics:\s*(.+?)\]$/);
+      const embedKeyMatch = line.match(/^\[embedKey:\s*(.+?)\]$/);
+      const statusMatch = line.match(/^\[status:\s*(.+?)\]$/);
 
       if (topicMatch) {
         topic = topicMatch[1].trim();
@@ -99,6 +105,10 @@ function parseMarkdownFile(filePath: string): ParsedChunk[] {
         subTopic = subTopicMatch[1].trim();
       } else if (relatedTopicsMatch) {
         relatedTopics = relatedTopicsMatch[1].split(',').map(t => t.trim()).filter(Boolean);
+      } else if (embedKeyMatch) {
+        embedKey = embedKeyMatch[1].trim();
+      } else if (statusMatch) {
+        status = statusMatch[1].trim();
       } else if (!line.startsWith('# ')) {
         contentLines.push(line);
       }
@@ -111,7 +121,7 @@ function parseMarkdownFile(filePath: string): ParsedChunk[] {
 
     const content = contentLines.join('\n').trim();
     if (content && topic && source) {
-      chunks.push({ content, topic, source, difficulty, subTopic, relatedTopics });
+      chunks.push({ content, topic, source, difficulty, subTopic, relatedTopics, embedKey, status });
     }
   }
 
@@ -150,16 +160,36 @@ async function main() {
     process.exit(1);
   }
 
-  const files = fs.readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith('.md'));
-  console.log(`📄 Found ${files.length} files\n`);
+  // ── CLI flags ──────────────────────────────────────────────────────
+  const noClear = process.argv.includes('--no-clear');
+  const reembed = process.argv.includes('--reembed');
+  const onlyFile = process.argv.find(a => a.startsWith('--file='))?.split('=')[1];
 
-  // Clear existing chunks
-  const deleteResult = await db.prisma.$executeRawUnsafe('DELETE FROM knowledge_chunks');
-  console.log(`🗑️  Cleared existing chunks (${deleteResult} rows)\n`);
+  let files: string[];
+  if (onlyFile) {
+    if (!fs.existsSync(path.join(KNOWLEDGE_DIR, onlyFile))) {
+      console.error('❌ File not found:', path.join(KNOWLEDGE_DIR, onlyFile));
+      process.exit(1);
+    }
+    files = [onlyFile];
+  } else {
+    files = fs.readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith('.md'));
+  }
+  console.log(`📄 Processing ${files.length} file(s)${onlyFile ? ` (--file=${onlyFile})` : ''}\n`);
+
+  // Clear existing chunks (full rebuild) unless incremental mode
+  if (!noClear) {
+    const deleteResult = await db.prisma.$executeRawUnsafe('DELETE FROM knowledge_chunks');
+    console.log(`🗑️  Cleared existing chunks (${deleteResult} rows)\n`);
+  } else {
+    console.log('➕ Incremental mode (--no-clear): keeping existing rows, dedup by source\n');
+  }
 
   let totalChunks = 0;
   let successCount = 0;
   let errorCount = 0;
+  let skippedDraft = 0;
+  let skippedExisting = 0;
 
   for (const file of files) {
     const filePath = path.join(KNOWLEDGE_DIR, file);
@@ -170,26 +200,67 @@ async function main() {
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
+
+      // Status gate: skip drafts (a status that is present and not "reviewed").
+      // Chunks with NO status line ingest normally (backward compatible).
+      if (chunk.status && chunk.status.toLowerCase() !== 'reviewed') {
+        skippedDraft++;
+        process.stdout.write(`   ⊘ [${i + 1}/${chunks.length}] skip (${chunk.status}): ${chunk.source}\n`);
+        continue;
+      }
+
       try {
-        const embedding = await createEmbedding(chunk.content);
+        // Incremental dedup by source (only relevant with --no-clear)
+        let exists = false;
+        if (noClear) {
+          const rows = await db.prisma.$queryRawUnsafe<{ id: string }[]>(
+            'SELECT id FROM knowledge_chunks WHERE source = $1 LIMIT 1',
+            chunk.source,
+          );
+          exists = rows.length > 0;
+          if (exists && !reembed) {
+            skippedExisting++;
+            process.stdout.write(`   ↺ [${i + 1}/${chunks.length}] skip existing: ${chunk.source}\n`);
+            continue;
+          }
+        }
+
+        // Embed the PROBLEM (embedKey) when provided, else the full content.
+        const embedding = await createEmbedding(chunk.embedKey ?? chunk.content);
         const vectorStr = `[${embedding.join(',')}]`;
 
         await execWithRetry(async (p) => {
-          await p.$executeRawUnsafe(
-            `INSERT INTO knowledge_chunks (id, content, topic, source, difficulty, "subTopic", "relatedTopics", embedding, "createdAt")
-             VALUES (gen_random_uuid(), $1, $2, $3, $4::"Difficulty", $5, $6::"Topic"[], $7::vector, NOW())`,
-            chunk.content,
-            chunk.topic,
-            chunk.source,
-            chunk.difficulty,
-            chunk.subTopic,
-            chunk.relatedTopics.length > 0 ? chunk.relatedTopics : [],
-            vectorStr
-          );
+          if (exists && reembed) {
+            await p.$executeRawUnsafe(
+              `UPDATE knowledge_chunks
+                 SET content = $1, topic = $2, difficulty = $3::"Difficulty",
+                     "subTopic" = $4, "relatedTopics" = $5::"Topic"[], embedding = $6::vector
+               WHERE source = $7`,
+              chunk.content,
+              chunk.topic,
+              chunk.difficulty,
+              chunk.subTopic,
+              chunk.relatedTopics.length > 0 ? chunk.relatedTopics : [],
+              vectorStr,
+              chunk.source,
+            );
+          } else {
+            await p.$executeRawUnsafe(
+              `INSERT INTO knowledge_chunks (id, content, topic, source, difficulty, "subTopic", "relatedTopics", embedding, "createdAt")
+               VALUES (gen_random_uuid(), $1, $2, $3, $4::"Difficulty", $5, $6::"Topic"[], $7::vector, NOW())`,
+              chunk.content,
+              chunk.topic,
+              chunk.source,
+              chunk.difficulty,
+              chunk.subTopic,
+              chunk.relatedTopics.length > 0 ? chunk.relatedTopics : [],
+              vectorStr
+            );
+          }
         });
 
         successCount++;
-        process.stdout.write(`   ✓ [${i + 1}/${chunks.length}] ${chunk.source}\n`);
+        process.stdout.write(`   ${exists ? '↻' : '✓'} [${i + 1}/${chunks.length}] ${chunk.source}\n`);
       } catch (error: any) {
         errorCount++;
         console.error(`   ✗ [${i + 1}/${chunks.length}] ${chunk.source}: ${error.message}`);
@@ -202,7 +273,9 @@ async function main() {
   }
 
   console.log('═══════════════════════════════════');
-  console.log(`✅ Done! ${successCount}/${totalChunks} chunks inserted successfully`);
+  console.log(`✅ Done! ${successCount}/${totalChunks} chunks ingested successfully`);
+  if (skippedDraft > 0) console.log(`⊘ ${skippedDraft} chunk(s) skipped (status not "reviewed")`);
+  if (skippedExisting > 0) console.log(`↺ ${skippedExisting} chunk(s) skipped (already exist; use --reembed to update)`);
   if (errorCount > 0) {
     console.log(`❌ ${errorCount} chunks failed`);
   }

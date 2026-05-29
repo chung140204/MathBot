@@ -9,10 +9,18 @@ export interface KnowledgeChunkResult {
   relatedTopics?: string[];
 }
 
+export type Difficulty = 'RECOGNITION' | 'COMPREHENSION' | 'APPLICATION' | 'ADVANCED';
+
+export interface ClassifyResult {
+  topic: string | null;
+  difficulty: Difficulty | null;
+}
+
 export interface RankedChunk extends KnowledgeChunkResult {
   keywordScore: number;
   topicBoost: number;
   relatedTopicBoost: number;
+  difficultyBoost: number;
   finalScore: number;
 }
 

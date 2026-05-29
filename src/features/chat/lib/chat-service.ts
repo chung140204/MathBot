@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import prisma from '@/shared/lib/db';
 import { ragSearch, RagSearchResult } from '@/features/knowledge/lib/rag/pipeline';
-import { buildSystemPrompt } from '@/features/knowledge/lib/rag/prompts';
+import { buildSystemPrompt, StudentProfileForPrompt } from '@/features/knowledge/lib/rag/prompts';
+import { maybeUpdateStudentProfile } from './profile-summarizer';
 import { z } from 'zod';
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
@@ -13,7 +14,11 @@ export const chatRequestSchema = z.object({
   })).min(1),
   sessionId: z.string().nullable().optional(),
   imageBase64: z.string().nullable().optional(),
-  mode: z.enum(['fast', 'thinking', 'tutor']).optional().default('thinking'),
+  mode: z.enum(['fast', 'thinking', 'tutor']).optional().default('tutor'),
+  // On regenerate/edit: the user message id to replace from. The server deletes
+  // that message and everything after it before saving, so the conversation
+  // doesn't accumulate duplicate/stale rows.
+  replaceFromMessageId: z.string().nullable().optional(),
 });
 
 export type ChatStreamParams = z.infer<typeof chatRequestSchema>;
@@ -78,19 +83,24 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 1): Promise<T> {
 
 export async function createChatStream(userId: string, params: ChatStreamParams): Promise<ReadableStream> {
   const { messages, imageBase64, mode } = params;
+  const replaceFromMessageId = params.replaceFromMessageId ?? null;
   let sessionId = params.sessionId ?? null;
-  const lastUserMessage = messages[messages.length - 1].content;
+  const rawLastMessage = messages[messages.length - 1].content;
+  const lastUserMessage = rawLastMessage.replace(/!\[image\]\(data:image\/[^)]+\)\n?\n?/g, '').trim();
   const encoder = new TextEncoder();
 
   const resolveSession = async (): Promise<{ id: string; isNew: boolean }> => {
-    if (!sessionId) {
-      const newTitle = lastUserMessage.substring(0, 50) + (lastUserMessage.length > 50 ? '...' : '');
-      const newSession = await prisma.chatSession.create({ data: { userId, title: newTitle } });
-      return { id: newSession.id, isNew: true };
+    if (sessionId) {
+      const existing = await prisma.chatSession.findFirst({ where: { id: sessionId, userId }, select: { id: true } });
+      if (existing) return { id: sessionId, isNew: false };
+      // sessionId was provided but not found for this user (stale client id, a
+      // deleted conversation, or another account). Recover gracefully by starting
+      // a fresh session instead of returning 404 and dead-ending the user.
+      console.warn('[Chat] sessionId not found, creating a new session:', sessionId);
     }
-    const existing = await prisma.chatSession.findFirst({ where: { id: sessionId, userId }, select: { id: true } });
-    if (!existing) throw new Error('SESSION_NOT_FOUND');
-    return { id: sessionId, isNew: false };
+    const newTitle = lastUserMessage.substring(0, 50) + (lastUserMessage.length > 50 ? '...' : '');
+    const newSession = await prisma.chatSession.create({ data: { userId, title: newTitle } });
+    return { id: newSession.id, isNew: true };
   };
 
   // Session resolution stays outside the stream for proper HTTP 404 handling
@@ -105,16 +115,27 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
   sessionId = sessionResult.id;
   const isNewSession = sessionResult.isNew;
 
-  const saveToDatabase = async (assistantContent: string): Promise<{ userMsgId: string; assistantMsgId: string } | null> => {
+  // Persist the user's question on its own — called BEFORE the AI runs so the
+  // question survives even if the model fails (no more empty chats on reopen).
+  const saveUserMessage = async (): Promise<string | null> => {
     try {
-      const [userMsg, assistantMsg] = await Promise.all([
-        prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'user', content: lastUserMessage } }),
-        prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'assistant', content: assistantContent } }),
-      ]);
+      const msg = await prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'user', content: rawLastMessage } });
       await prisma.chatSession.update({ where: { id: sessionId! }, data: { updatedAt: new Date() } });
-      return { userMsgId: userMsg.id, assistantMsgId: assistantMsg.id };
+      return msg.id;
     } catch (dbError) {
-      console.error('[Chat] Failed to save messages to database:', dbError);
+      console.error('[Chat] Failed to save user message:', dbError);
+      return null;
+    }
+  };
+
+  // Persist the assistant's answer after streaming completes.
+  const saveAssistantMessage = async (assistantContent: string): Promise<string | null> => {
+    try {
+      const msg = await prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'assistant', content: assistantContent } });
+      await prisma.chatSession.update({ where: { id: sessionId! }, data: { updatedAt: new Date() } });
+      return msg.id;
+    } catch (dbError) {
+      console.error('[Chat] Failed to save assistant message:', dbError);
       return null;
     }
   };
@@ -132,7 +153,8 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         }
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
-        await saveToDatabase(fullResponse.trim());
+        await saveUserMessage();
+        await saveAssistantMessage(fullResponse.trim());
       },
     });
   }
@@ -155,25 +177,75 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       if (isNewSession) send(`data: ${JSON.stringify({ event: 'session', sessionId })}\n\n`);
       send(`data: ${JSON.stringify({ event: 'rag_searching' })}\n\n`);
 
-      // RAG runs INSIDE the stream so the client receives rag_searching immediately
-      let ragResult: RagSearchResult;
-      try {
-        ragResult = await ragSearch(lastUserMessage, { mode, history: messages });
-      } catch {
-        ragResult = { chunks: [] };
-      }
+      // RAG runs INSIDE the stream so the client receives rag_searching immediately.
+      // The student profile is fetched in parallel so the tutor can personalise.
+      const [ragResult, studentProfile] = await Promise.all([
+        ragSearch(lastUserMessage, { mode, history: messages }).catch(() => ({ chunks: [] } as RagSearchResult)),
+        prisma.studentProfile
+          .findUnique({
+            where: { userId },
+            select: {
+              level: true, weakTopics: true, strongTopics: true,
+              lastStudied: true, recurringErrors: true, goals: true, summary: true,
+              user: { select: { name: true } },
+            },
+          })
+          .catch(() => null),
+      ]);
+
+      const profileForPrompt: StudentProfileForPrompt | null = studentProfile
+        ? {
+            studentName: studentProfile.user?.name?.split(' ').pop() ?? null,
+            level: studentProfile.level,
+            weakTopics: studentProfile.weakTopics,
+            strongTopics: studentProfile.strongTopics,
+            lastStudied: studentProfile.lastStudied,
+            recurringErrors: studentProfile.recurringErrors,
+            goals: studentProfile.goals,
+            summary: studentProfile.summary,
+          }
+        : null;
 
       const { chunks, rewrittenQuery } = ragResult;
+      // Cap how many chunks go into the prompt to keep the request small (cost,
+      // latency, provider token limits). Retrieval may rank more (VDC topK=8), but
+      // ~5 worked examples are plenty for the LLM to imitate. Configurable via env.
+      const maxCtxChunks = parseInt(process.env.RAG_PROMPT_MAX_CHUNKS || '5', 10);
+      const promptChunks = chunks.slice(0, maxCtxChunks);
       if (rewrittenQuery) send(`data: ${JSON.stringify({ event: 'rewrite', original: lastUserMessage, rewritten: rewrittenQuery })}\n\n`);
-      if (chunks.length > 0) {
-        const sourcesPayload = chunks.map(c => ({
+      if (promptChunks.length > 0) {
+        const sourcesPayload = promptChunks.map(c => ({
           source: c.source, topic: c.topic,
           similarity: 'finalScore' in c ? (c as any).finalScore : c.similarity,
         }));
         send(`data: ${JSON.stringify({ event: 'sources', data: sourcesPayload })}\n\n`);
       }
 
-      const systemPrompt = { role: 'system' as const, content: buildSystemPrompt(chunks, mode) };
+      // Regenerate/edit: drop the superseded message(s) so the conversation
+      // doesn't accumulate duplicate/stale rows. Deletes the target user message
+      // and everything created at-or-after it in this session, then re-saves below.
+      if (replaceFromMessageId && !isNewSession) {
+        try {
+          const target = await prisma.chatMessage.findFirst({
+            where: { id: replaceFromMessageId, chatSessionId: sessionId! },
+            select: { createdAt: true },
+          });
+          if (target) {
+            await prisma.chatMessage.deleteMany({
+              where: { chatSessionId: sessionId!, createdAt: { gte: target.createdAt } },
+            });
+          }
+        } catch (e) {
+          console.error('[Chat] replace/truncate failed:', e);
+        }
+      }
+
+      // Save the question NOW, before the model runs. If the AI later fails or
+      // returns nothing, the question is already persisted — reopening the chat
+      // shows it (instead of an empty window).
+      const userMsgId = await saveUserMessage();
+
+      const systemPrompt = { role: 'system' as const, content: buildSystemPrompt(promptChunks, mode, profileForPrompt) };
 
       const recentMessages = messages.slice(-maxHistory).map(msg => {
         if (msg.role === 'assistant' && msg.content.length > 1500) return { ...msg, content: msg.content.slice(0, 1500) + '\n...[lược bỏ]' };
@@ -203,20 +275,15 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       let chatClient: OpenAI;
       let chatModel: string;
 
-      if (gemini) {
-        chatClient = gemini;
-        chatModel = imageBase64 ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
-      } else if (groq && !imageBase64) {
-        chatClient = groq;
-        chatModel = mode === 'fast'
-          ? (process.env.GROQ_FAST_MODEL || 'llama-3.1-8b-instant')
-          : (process.env.GROQ_MODEL || 'qwen/qwen3-32b');
-      } else {
-        chatClient = nvidia;
-        chatModel = imageBase64
-          ? (process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct')
-          : (process.env.NVIDIA_MODEL || 'meta/llama-3.1-70b-instruct');
-      }
+      // Chat uses NVIDIA as the PRIMARY provider (free + reliable). Gemini/Groq
+      // keys remain in .env for RAG/embeddings/OCR, but are intentionally not used
+      // here so chat doesn't waste 429/413 fallback hops when Gemini quota is out.
+      chatClient = nvidia;
+      chatModel = imageBase64
+        ? (process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct')
+        : mode === 'fast'
+          ? (process.env.NVIDIA_FAST_MODEL || process.env.NVIDIA_MODEL || 'qwen/qwen3-next-80b-a3b-instruct')
+          : (process.env.NVIDIA_MODEL || 'qwen/qwen3-next-80b-a3b-instruct');
 
       console.log(`[Chat] model=${chatModel}, mode=${mode}, hasImage=${!!imageBase64}`);
 
@@ -264,30 +331,56 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         response = await createStream(nvidia, chatModel);
       };
 
+      // Chat fallback chain = NVIDIA only: primary model + one NVIDIA backup model.
+      // (Gemini/Groq remain available to other features via their .env keys.)
+      const fallbackChain: Array<{ client: OpenAI; model: string }> = [];
+      fallbackChain.push({ client: chatClient, model: chatModel });
+      if (!imageBase64) {
+        const backupModel = process.env.NVIDIA_BACKUP_MODEL || 'meta/llama-3.3-70b-instruct';
+        if (backupModel !== chatModel) fallbackChain.push({ client: nvidia, model: backupModel });
+      }
+
       let response: any;
-      try {
-        response = await createStream(chatClient, chatModel);
-      } catch (err: any) {
-        const status = err?.status;
-        if (status === 429 || status === 503) {
-          if (gemini && chatModel.includes('pro')) {
-            chatModel = 'gemini-2.5-flash';
-            console.log(`[Chat] Gemini Pro ${status}, fallback to ${chatModel}`);
-            try {
-              response = await createStream(chatClient, chatModel);
-            } catch (flashErr: any) {
-              console.log(`[Chat] Gemini Flash also failed (${flashErr?.status}), fallback to NVIDIA`);
-              await nvidiaVisionFallback();
+      let lastError: any;
+      const originalLastMessage = apiMessages.length > 0 ? { ...apiMessages[apiMessages.length - 1] } : null;
+      for (const { client, model } of fallbackChain) {
+        try {
+          // Strip image for text-only models (Groq), restore for vision models
+          const lastIdx = apiMessages.length - 1;
+          if (client === groq && imageBase64) {
+            if (Array.isArray(apiMessages[lastIdx].content)) {
+              const textPart = apiMessages[lastIdx].content.find((p: any) => p.type === 'text');
+              apiMessages[lastIdx] = { role: 'user', content: textPart?.text || '' };
             }
-          } else if (gemini) {
-            console.log(`[Chat] Gemini Flash ${status}, fallback to NVIDIA`);
-            await nvidiaVisionFallback();
-          } else {
-            throw err;
+            console.log('[Chat] Stripped image for text-only model');
+          } else if (originalLastMessage && client !== groq) {
+            apiMessages[lastIdx] = { ...originalLastMessage };
           }
-        } else {
-          throw err;
+          chatModel = model;
+          console.log(`[Chat] Trying ${model}...`);
+          response = await createStream(client, model);
+          console.log(`[Chat] ${model} connected successfully`);
+          break;
+        } catch (err: any) {
+          lastError = err;
+          const status = err?.status;
+          // 413 = request too large (e.g. Groq free-tier TPM limit) → fall through
+          // to a provider with a larger context (NVIDIA) instead of failing.
+          if (status === 429 || status === 403 || status === 503 || status === 413) {
+            console.log(`[Chat] ${model} returned ${status}, trying next fallback...`);
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+          }
+          throw err; // Non-retryable error
         }
+      }
+
+      // If all fallbacks failed with 429/503 and we have an image, try NVIDIA vision extraction
+      if (!response && imageBase64) {
+        console.log('[Chat] All models failed, trying NVIDIA Vision extraction...');
+        await nvidiaVisionFallback();
+      } else if (!response) {
+        throw lastError;
       }
 
       let fullResponse = '';
@@ -314,12 +407,22 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       }
 
       if (fullResponse) {
-        const saved = await saveToDatabase(fullResponse);
-        if (saved) {
-          send(`data: ${JSON.stringify({ event: 'saved', userMessageId: saved.userMsgId, assistantMessageId: saved.assistantMsgId })}\n\n`);
+        const assistantMsgId = await saveAssistantMessage(fullResponse);
+        if (userMsgId && assistantMsgId) {
+          send(`data: ${JSON.stringify({ event: 'saved', userMessageId: userMsgId, assistantMessageId: assistantMsgId })}\n\n`);
         } else {
           send(`data: ${JSON.stringify({ event: 'warning', message: 'Tin nhắn có thể chưa được lưu. Vui lòng kiểm tra lịch sử chat.' })}\n\n`);
         }
+
+        // Fire-and-forget: refresh the long-term learning profile after the turn.
+        // Never blocks the response; internally debounced + guarded.
+        const transcript = [
+          ...recentMessages.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'assistant', content: fullResponse },
+        ];
+        void maybeUpdateStudentProfile(userId, transcript).catch((e) =>
+          console.error('[Chat] profile update failed:', e),
+        );
       }
       send('data: [DONE]\n\n');
       close();

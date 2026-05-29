@@ -23,6 +23,7 @@ model User {
   settings     Json?         @default("{}")
   updatedAt    DateTime      @updatedAt
   chatSessions     ChatSession[]
+  studentProfile   StudentProfile?
   examAttempts     ExamAttempt[]
   studyProgress    StudyProgress[]
   studyBookmarks   StudyBookmark[]
@@ -111,6 +112,7 @@ model ExamAnswer {
   question      Question    @relation(fields: [questionId], references: [id])
 
   @@index([examAttemptId])
+  @@index([questionId])
   @@map("exam_answers")
 }
 
@@ -141,6 +143,25 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+// Long-term learning profile — lets the tutor "remember" each student across
+// sessions (level, weak/strong topics, recurring errors, goals, rolling summary).
+model StudentProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  level           String? // "trung bình" | "khá" | "giỏi"
+  strongTopics    Topic[]
+  weakTopics      Topic[]
+  recurringErrors String? // bullet text từ summarizer
+  goals           String? // seed từ User.targetScore
+  lastStudied     String? // chủ đề gần nhất, vd "Tích phân từng phần"
+  summary         String? // hồ sơ cuộn 3-5 câu
+  sessionCount    Int      @default(0)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_profiles")
+}
+
 model KnowledgeChunk {
   id            String                    @id @default(cuid())
   content       String
@@ -150,12 +171,19 @@ model KnowledgeChunk {
   subTopic      String?
   relatedTopics Topic[]
   embedding     Unsupported("vector(768)")?
+  // Generated full-text-search column, populated/queried via raw SQL (search.ts).
+  // Declared so Prisma is aware of it and `db pull`/diff stays clean.
+  content_tsv   Unsupported("tsvector")?
   createdAt     DateTime                  @default(now())
 
   @@index([topic])
   @@map("knowledge_chunks")
 }
 
+// NOTE: study_contents / study_progress / study_bookmarks were created via raw SQL
+// scripts, so in the live DB their `id` uses a gen_random_uuid() default and some
+// timestamps are nullable. This drift is benign — Prisma always sets these values
+// app-side at write time, so runtime behavior is unaffected. Left as-is intentionally.
 model StudyContent {
   id         String   @id @default(cuid())
   topic      Topic
@@ -185,7 +213,7 @@ model StudyProgress {
 model StudyBookmark {
   id         String   @id @default(cuid())
   userId     String
-  topic      String
+  topic      Topic
   subsection String
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -278,6 +306,7 @@ model ExamSetQuestion {
 
   @@unique([examSetId, questionId])
   @@index([examSetId, sortOrder])
+  @@index([questionId])
   @@map("exam_set_questions")
 }
 
@@ -295,6 +324,7 @@ model ClassAssignment {
 
   @@unique([classroomId, examSetId])
   @@index([classroomId])
+  @@index([examSetId])
   @@map("class_assignments")
 }
 

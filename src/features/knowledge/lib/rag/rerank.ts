@@ -1,4 +1,4 @@
-import { KnowledgeChunkResult, RankedChunk } from './types';
+import { KnowledgeChunkResult, RankedChunk, Difficulty } from './types';
 
 function computeKeywordScore(query: string, content: string): number {
   const queryWords = query
@@ -21,6 +21,7 @@ export function mergeAndRerank(
   detectedTopic: string | null,
   query: string,
   topK: number = 5,
+  detectedDifficulty: Difficulty | null = null,
 ): RankedChunk[] {
   const chunkMap = new Map<string, KnowledgeChunkResult>();
   const maxSimilarities = new Map<string, number>();
@@ -49,7 +50,23 @@ export function mergeAndRerank(
     const keywordScore = computeKeywordScore(query, chunk.content);
     const topicBoost = detectedTopic && chunk.topic === detectedTopic ? 1.0 : 0.0;
     const relatedTopicBoost = detectedTopic && chunk.relatedTopics?.includes(detectedTopic) ? 1.0 : 0.0;
-    const finalScore = 0.50 * vectorSimilarity + 0.27 * keywordScore + 0.15 * topicBoost + 0.08 * relatedTopicBoost;
+
+    // Difficulty-aware soft boost — only when the query is detected ADVANCED (VDC).
+    // Env-overridable weights default to the original values, so when
+    // detectedDifficulty !== 'ADVANCED' the formula is byte-identical to before.
+    const vdcActive = detectedDifficulty === 'ADVANCED';
+    const difficultyBoost = vdcActive && chunk.difficulty === 'ADVANCED' ? 1.0 : 0.0;
+    const wVec = parseFloat(process.env.RAG_W_VECTOR || '0.50');
+    const wKw = parseFloat(process.env.RAG_W_KW || '0.27');
+    const wTopic = parseFloat(process.env.RAG_W_TOPIC || '0.15');
+    const wRelated = parseFloat(process.env.RAG_W_RELATED || '0.08');
+    const wDiff = parseFloat(process.env.RAG_W_DIFFICULTY || '0.10');
+    const finalScore =
+      wVec * vectorSimilarity +
+      wKw * keywordScore +
+      wTopic * topicBoost +
+      wRelated * relatedTopicBoost +
+      (vdcActive ? wDiff * difficultyBoost : 0);
 
     ranked.push({
       ...chunk,
@@ -57,6 +74,7 @@ export function mergeAndRerank(
       keywordScore,
       topicBoost,
       relatedTopicBoost,
+      difficultyBoost,
       finalScore,
     });
   }

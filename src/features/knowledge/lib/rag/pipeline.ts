@@ -1,11 +1,11 @@
 import { createEmbeddings } from './embed';
 import { searchSimilarChunks, searchByKeywords } from './search';
-import { classifyTopic, smartClassifyTopic } from './router';
+import { classifyTopic, smartClassify, classifyDifficultyKeywords } from './router';
 import { decomposeQuery } from './decompose';
 import { mergeAndRerank } from './rerank';
 import { rewriteQuery, detectFollowUp } from './query-rewriter';
 import { generateHypotheticalAnswer } from './hyde';
-import type { KnowledgeChunkResult } from './types';
+import type { KnowledgeChunkResult, Difficulty } from './types';
 
 export interface RagSearchOptions {
   mode?: 'fast' | 'thinking' | 'tutor';
@@ -27,22 +27,29 @@ export async function ragSearch(
   userMessage: string,
   options?: RagSearchOptions,
 ): Promise<RagSearchResult> {
-  // Fast mode: lightweight RAG — skip HyDE and decomposition, return top 2 chunks
+  // Fast mode: lightweight RAG — skip HyDE and decomposition, return top chunks.
+  // Auto-upgrade to the full pipeline when the query looks like VDC (env-gated).
   if (options?.mode === 'fast') {
-    try {
-      const topic = classifyTopic(userMessage);
-      const [embedding] = await createEmbeddings([userMessage]);
-      const [vectorResults, keywordResults] = await Promise.all([
-        searchSimilarChunks(embedding, undefined, undefined, topic),
-        searchByKeywords(userMessage, undefined, topic),
-      ]);
-      const chunks = mergeAndRerank([vectorResults], keywordResults, topic, userMessage, 3);
-      console.log(`[RAG] Fast mode: ${chunks.length} chunks`);
-      return { chunks };
-    } catch (error) {
-      console.error('[RAG] Fast mode error, no context:', error);
-      return { chunks: [] };
+    const autoUpgrade =
+      process.env.RAG_VDC_AUTO_UPGRADE !== 'false' &&
+      classifyDifficultyKeywords(userMessage) === 'ADVANCED';
+    if (!autoUpgrade) {
+      try {
+        const topic = classifyTopic(userMessage);
+        const [embedding] = await createEmbeddings([userMessage]);
+        const [vectorResults, keywordResults] = await Promise.all([
+          searchSimilarChunks(embedding, undefined, undefined, topic),
+          searchByKeywords(userMessage, undefined, topic),
+        ]);
+        const chunks = mergeAndRerank([vectorResults], keywordResults, topic, userMessage, 3, null);
+        console.log(`[RAG] Fast mode: ${chunks.length} chunks`);
+        return { chunks };
+      } catch (error) {
+        console.error('[RAG] Fast mode error, no context:', error);
+        return { chunks: [] };
+      }
     }
+    console.log('[RAG] Fast mode → upgraded to full pipeline (VDC detected)');
   }
 
   try {
@@ -56,6 +63,7 @@ export async function ragSearch(
     let rewrittenQuery: string | undefined;
     let hydeText: string | null = null;
     let topic: string | null = null;
+    let difficulty: Difficulty | null = null;
 
     if (isFollowUp) {
       // Follow-up: rewrite FIRST, then HyDE+classify on rewritten query
@@ -67,18 +75,22 @@ export async function ragSearch(
       }
 
       // Now HyDE + classify run on the rewritten query (correct context)
-      [hydeText, topic] = await Promise.all([
+      const [hyde, cls] = await Promise.all([
         ragQuery.length >= 15 ? generateHypotheticalAnswer(ragQuery) : Promise.resolve(null),
-        smartClassifyTopic(ragQuery),
+        smartClassify(ragQuery),
       ]);
+      hydeText = hyde;
+      topic = cls.topic;
+      difficulty = cls.difficulty;
     } else {
       // Not follow-up: all 3 run in parallel on original (fast path)
       const [hydeResult, classifyResult] = await Promise.all([
         userMessage.length >= 15 ? generateHypotheticalAnswer(userMessage) : Promise.resolve(null),
-        smartClassifyTopic(userMessage),
+        smartClassify(userMessage),
       ]);
       hydeText = hydeResult;
-      topic = classifyResult;
+      topic = classifyResult.topic;
+      difficulty = classifyResult.difficulty;
     }
 
     console.timeEnd('[RAG] llm-calls');
@@ -103,16 +115,22 @@ export async function ragSearch(
       searchByKeywords(ragQuery, undefined, topic),
     ]);
 
-    // Step 5: Merge + re-rank
+    // Step 5: Merge + re-rank (deeper top-K when the query is VDC/ADVANCED)
+    const isVdc = difficulty === 'ADVANCED';
+    const topK = isVdc ? parseInt(process.env.RAG_VDC_TOP_K || '8', 10) : 5;
     const chunks = mergeAndRerank(
       vectorResults,
       keywordResults,
       topic,
       ragQuery,
+      topK,
+      difficulty,
     );
 
-    // Step 6: Confidence gate — filter chunks below threshold
-    const minConfidence = parseFloat(process.env.RAG_CONFIDENCE_THRESHOLD || '0.30');
+    // Step 6: Confidence gate — relaxed for VDC (hard problems embed at lower similarity)
+    const minConfidence = isVdc
+      ? parseFloat(process.env.RAG_VDC_CONFIDENCE_THRESHOLD || '0.18')
+      : parseFloat(process.env.RAG_CONFIDENCE_THRESHOLD || '0.30');
     const confidentChunks = chunks.filter(c => c.finalScore >= minConfidence);
     if (confidentChunks.length === 0 && chunks.length > 0) {
       console.log(`[RAG] No confident chunks (best: ${chunks[0].finalScore.toFixed(2)} < ${minConfidence}), skipping context`);

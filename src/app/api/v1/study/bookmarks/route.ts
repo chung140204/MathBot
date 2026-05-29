@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
-import { Prisma } from '@prisma/client';
+import { Prisma, Topic } from '@prisma/client';
 import { z } from 'zod';
 
 const bookmarkSchema = z.object({
-  topic: z.string().min(1).max(50),
+  // topic is the Topic enum key — reject invalid values up front (400) instead
+  // of letting the ::"Topic" cast fail at the DB layer.
+  topic: z.nativeEnum(Topic),
   subsection: z.string().min(1).max(200),
 });
 
@@ -43,19 +45,19 @@ export async function POST(req: NextRequest) {
 
     // Check if already bookmarked
     const existing = await prisma.$queryRaw<{ id: string }[]>(
-      Prisma.sql`SELECT id FROM study_bookmarks WHERE "userId" = ${userId} AND topic = ${topic} AND subsection = ${subsection}`
+      Prisma.sql`SELECT id FROM study_bookmarks WHERE "userId" = ${userId} AND topic = ${topic}::"Topic" AND subsection = ${subsection}`
     );
 
     if (existing.length > 0) {
       // Remove bookmark
       await prisma.$executeRaw(
-        Prisma.sql`DELETE FROM study_bookmarks WHERE "userId" = ${userId} AND topic = ${topic} AND subsection = ${subsection}`
+        Prisma.sql`DELETE FROM study_bookmarks WHERE "userId" = ${userId} AND topic = ${topic}::"Topic" AND subsection = ${subsection}`
       );
       return NextResponse.json({ bookmarked: false });
     } else {
       // Add bookmark
       await prisma.$executeRaw(
-        Prisma.sql`INSERT INTO study_bookmarks (id, "userId", topic, subsection, "createdAt") VALUES (gen_random_uuid()::text, ${userId}, ${topic}, ${subsection}, NOW())`
+        Prisma.sql`INSERT INTO study_bookmarks (id, "userId", topic, subsection, "createdAt") VALUES (gen_random_uuid()::text, ${userId}, ${topic}::"Topic", ${subsection}, NOW())`
       );
       return NextResponse.json({ bookmarked: true });
     }

@@ -12,65 +12,32 @@ export async function GET() {
 
   try {
     const today = startOfToday();
-
-    // Fetch stats sequentially to avoid connection pooling issues with Neon adapter
-    let totalUsers = 0;
-    let totalQuestions = 0;
-    let examsToday = 0;
-    let aiChatsToday = 0;
-
-    try {
-      totalUsers = await prisma.user.count();
-    } catch (e) {
-      console.error('Error counting users:', e);
-    }
-
-    try {
-      totalQuestions = await prisma.question.count({ where: { isActive: true } });
-    } catch (e) {
-      console.error('Error counting questions:', e);
-    }
-
-    try {
-      examsToday = await prisma.examAttempt.count({ where: { submittedAt: { gte: today } } });
-    } catch (e) {
-      console.error('Error counting exams:', e);
-    }
-
-    try {
-      aiChatsToday = await prisma.chatMessage.count({ where: { createdAt: { gte: today }, role: 'assistant' } });
-    } catch (e) {
-      console.error('Error counting AI chats:', e);
-    }
-
-    // Compute real trends: compare last 7 days vs previous 7 days
     const weekAgo = subDays(today, 7);
     const twoWeeksAgo = subDays(today, 14);
 
-    let usersThisWeek = 0, usersPrevWeek = 0;
-    let examsThisWeek = 0, examsPrevWeek = 0;
-    let chatsThisWeek = 0, chatsPrevWeek = 0;
-
-    try {
-      [usersThisWeek, usersPrevWeek] = await Promise.all([
-        prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
-        prisma.user.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
-      ]);
-    } catch { /* keep 0 */ }
-
-    try {
-      [examsThisWeek, examsPrevWeek] = await Promise.all([
-        prisma.examAttempt.count({ where: { submittedAt: { gte: weekAgo } } }),
-        prisma.examAttempt.count({ where: { submittedAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
-      ]);
-    } catch { /* keep 0 */ }
-
-    try {
-      [chatsThisWeek, chatsPrevWeek] = await Promise.all([
-        prisma.chatMessage.count({ where: { createdAt: { gte: weekAgo }, role: 'assistant' } }),
-        prisma.chatMessage.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo }, role: 'assistant' } }),
-      ]);
-    } catch { /* keep 0 */ }
+    const [
+      totalUsers,
+      totalQuestions,
+      examsToday,
+      aiChatsToday,
+      usersThisWeek,
+      usersPrevWeek,
+      examsThisWeek,
+      examsPrevWeek,
+      chatsThisWeek,
+      chatsPrevWeek,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.question.count({ where: { isActive: true } }),
+      prisma.examAttempt.count({ where: { submittedAt: { gte: today } } }),
+      prisma.chatMessage.count({ where: { createdAt: { gte: today }, role: 'assistant' } }),
+      prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
+      prisma.user.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
+      prisma.examAttempt.count({ where: { submittedAt: { gte: weekAgo } } }),
+      prisma.examAttempt.count({ where: { submittedAt: { gte: twoWeeksAgo, lt: weekAgo } } }),
+      prisma.chatMessage.count({ where: { createdAt: { gte: weekAgo }, role: 'assistant' } }),
+      prisma.chatMessage.count({ where: { createdAt: { gte: twoWeeksAgo, lt: weekAgo }, role: 'assistant' } }),
+    ]);
 
     const trendStr = (curr: number, prev: number) => {
       if (prev === 0) return curr > 0 ? `+${curr}` : '0';

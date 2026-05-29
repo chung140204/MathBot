@@ -20,6 +20,7 @@ export async function GET() {
     // Run all independent queries in parallel instead of fetching everything
     const [
       generalStats,
+      scorePctStats,
       topicStatsRaw,
       weeklyAttempts,
       recentAttempts,
@@ -32,7 +33,16 @@ export async function GET() {
         _sum: { totalScore: true, timeTakenSecs: true },
       }),
 
-      // 2. Topic stats via raw GROUP BY — replaces nested JS loops
+      // 2. Avg/best score as percentages — computed in DB, avoids loading all rows
+      prisma.$queryRaw<Array<{ avg_pct: number; max_pct: number }>>`
+        SELECT
+          COALESCE(AVG(CAST("totalScore" AS float) / NULLIF("totalQuestions", 0) * 100), 0) AS avg_pct,
+          COALESCE(MAX(CAST("totalScore" AS float) / NULLIF("totalQuestions", 0) * 100), 0) AS max_pct
+        FROM "exam_attempts"
+        WHERE "userId" = ${userId}
+      `,
+
+      // 3. Topic stats via raw GROUP BY — replaces nested JS loops
       prisma.$queryRaw<
         Array<{ topic: string; total_questions: bigint; correct_score: number }>
       >`
@@ -46,14 +56,14 @@ export async function GET() {
         GROUP BY q."topic"
       `,
 
-      // 3. Weekly scores — only last 7 days instead of ALL attempts
+      // 4. Weekly scores — only last 7 days instead of ALL attempts
       prisma.examAttempt.findMany({
         where: { userId, submittedAt: { gte: sevenDaysAgo } },
         select: { totalScore: true, totalQuestions: true, submittedAt: true },
         orderBy: { submittedAt: 'asc' },
       }),
 
-      // 4. Recent attempts — only 5, no answers needed
+      // 5. Recent attempts — only 5, no answers needed
       prisma.examAttempt.findMany({
         where: { userId },
         orderBy: { submittedAt: 'desc' },
@@ -68,7 +78,7 @@ export async function GET() {
         },
       }),
 
-      // 5. Streak — only distinct dates, no answers
+      // 6. Streak — only distinct dates, no answers
       prisma.$queryRaw<Array<{ practice_date: string }>>`
         SELECT DISTINCT TO_CHAR("submittedAt", 'YYYY-MM-DD') AS practice_date
         FROM "exam_attempts"
@@ -106,15 +116,8 @@ export async function GET() {
     const totalStudyTimeSecs = generalStats._sum.timeTakenSecs ?? 0;
     const totalCorrectRaw = generalStats._sum.totalScore ?? 0;
 
-    // For averageScore and bestScore, we need score percentages
-    // Use a lightweight query for just scores
-    const scoreRows = await prisma.examAttempt.findMany({
-      where: { userId },
-      select: { totalScore: true, totalQuestions: true },
-    });
-    const scoresPct = scoreRows.map(a => (a.totalScore / a.totalQuestions) * 100);
-    const averageScore = Math.round(scoresPct.reduce((sum, s) => sum + s, 0) / totalExams);
-    const bestScore = Math.round(Math.max(...scoresPct));
+    const averageScore = Math.round(scorePctStats[0]?.avg_pct ?? 0);
+    const bestScore = Math.round(scorePctStats[0]?.max_pct ?? 0);
 
     // Process topic stats from raw query
     const topicStats = topicStatsRaw.map(row => ({
