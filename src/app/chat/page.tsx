@@ -6,7 +6,7 @@ import ChatSidebar from '@/features/chat/components/ChatSidebar';
 import ChatWindow from '@/features/chat/components/ChatWindow';
 
 export default function ChatPage() {
-  useEffect(() => { document.title = 'AI Chat | MathBot'; }, []);
+  useEffect(() => { document.title = 'Trợ lý Toán | MathBot'; }, []);
   const { data: session } = useSession();
   const userId = (session?.user as any)?.id;
   

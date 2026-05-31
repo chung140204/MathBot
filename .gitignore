@@ -79,3 +79,6 @@ CLAUDE.md
 *.txt
 test_db.ts
 load-test
+.env.example
+# editor/agent backups
+*.backup

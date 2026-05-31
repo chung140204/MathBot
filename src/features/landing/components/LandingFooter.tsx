@@ -48,7 +48,7 @@ export function LandingFooter() {
           <div>
             <p className="text-[11px] font-black uppercase tracking-widest text-slate-500 mb-4">Tài khoản</p>
             <ul className="space-y-2.5 text-sm mb-8">
-              {[{ href: '/register', label: 'Đăng ký' }, { href: '/login', label: 'Đăng nhập' }, { href: '/dashboard', label: 'Dashboard' }, { href: '/chat', label: 'AI Chat' }].map(l => (
+              {[{ href: '/register', label: 'Đăng ký' }, { href: '/login', label: 'Đăng nhập' }, { href: '/dashboard', label: 'Dashboard' }, { href: '/chat', label: 'Trợ lý Toán' }].map(l => (
                 <li key={l.label}><Link href={l.href} className="hover:text-[#34d399] transition-colors">{l.label}</Link></li>
               ))}
             </ul>

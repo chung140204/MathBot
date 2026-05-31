@@ -99,3 +99,27 @@ $$[\vec{AB}, \vec{AC}, \vec{AD}] = \vec{AD} \cdot (\vec{AB} \times \vec{AC}) = (
 $$V = \frac{1}{6}|[\vec{AB}, \vec{AC}, \vec{AD}]| = \frac{1}{6} \cdot 2 = \frac{1}{3}$$
 
 Phương pháp: Tích có hướng → tích hỗn hợp → thể tích = $\frac{1}{6}|$tích hỗn hợp$|$.
+
+---
+[topic: SOLID_GEOMETRY]
+[source: THPT QG - VDC Oxyz, gia tri nho nhat MB voi tam giac OAM dien tich cho truoc]
+[difficulty: ADVANCED]
+[subTopic: vdc_oxyz_min_mb_tam_giac_oam_dien_tich]
+
+Bài: Trong không gian $Oxyz$, cho $A(0;0;10)$, $B(3;4;6)$. Xét các điểm $M$ thay đổi sao cho tam giác $OAM$ không có góc tù và có diện tích bằng $15$. Tìm giá trị nhỏ nhất của độ dài đoạn thẳng $MB$.
+
+Lời giải:
+Quỹ tích điểm $M$: ta có $OA = 10$. Từ diện tích tam giác:
+$$S_{OAM} = \frac{1}{2} \cdot OA \cdot d(M; OA) = 15 \Rightarrow d(M; OA) = 3$$
+Suy ra $M$ di động trên mặt trụ bán kính $3$, trục là $OA$ (trục $Oz$).
+
+Điều kiện tam giác $OAM$ không có góc tù (tức $\widehat{AMO} \le 90^\circ$) giới hạn vị trí $M$ theo phương trục. Xét điểm $D$ trên mặt trụ với $H$ là hình chiếu của $D$ lên $OA$ ($HD = 3$):
+$$\begin{cases} HA \cdot HO = HD^2 = 9 \ HA + HO = 10 \end{cases} \Rightarrow \begin{cases} HA = 1 \ HO = 9 \end{cases}$$
+Do đó giới hạn của $M$ là phần hai mặt trụ ứng với hai đoạn trục $AH$ (với $z \in [9;10]$) và $FO$ (với $z \in [0;1]$).
+
+Tính $MB$ nhỏ nhất: hình chiếu của $B(3;4;6)$ lên trục $Oz$ có $z = 6$, khoảng cách từ $B$ đến trục là $\sqrt{3^2 + 4^2} = 5$. Vì hình chiếu của $B$ cách $H$ ($z=9$) gần hơn cách $F$ ($z=1$), điểm $M$ gần $B$ nhất nằm ở mép vùng phía $H$:
+- Theo phương ngang: $5 - 3 = 2$ (từ $B$ tới mặt trụ).
+- Theo phương trục: từ $z = 6$ đến $z = 9$ là $3$.
+
+$$MB_{\min} = \sqrt{2^2 + 3^2} = \sqrt{13}$$
+Vì $\sqrt{13} \approx 3{,}61 \in (3;4)$ nên đáp án B.

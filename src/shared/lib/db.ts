@@ -37,4 +37,8 @@ const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 
 export default prisma;
 
-if (process.env.NODE_ENV !== 'production') globalThis.prismaGlobal = prisma;
+// Cache the client on globalThis in ALL environments. In production
+// (serverless/long-lived) this prevents rebuilding the Neon Pool + WebSocket
+// connection on every module re-eval, keeping that setup cost off the request
+// (and thus off TTFT). The `??` above reuses it whenever the module is re-run.
+globalThis.prismaGlobal = prisma;

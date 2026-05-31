@@ -4,7 +4,10 @@ import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
 import { Prisma } from '@prisma/client';
 import { createEmbedding } from '@/features/knowledge/lib/rag/embed';
+import { bustRagCache } from '@/features/knowledge/lib/rag/rag-cache';
 import { z } from 'zod';
+
+export const runtime = 'nodejs';
 
 const ingestSchema = z.object({
   content: z.string().min(10).max(10000),
@@ -41,6 +44,9 @@ export async function POST(req: NextRequest) {
        VALUES (gen_random_uuid(), ${content}, ${topic}, ${source}, ${vectorStr}::vector, NOW())
        RETURNING id, content, topic, source, "createdAt"`
     );
+
+    // The knowledge base changed — invalidate cached RAG retrieval results.
+    await bustRagCache();
 
     return NextResponse.json({ success: true, chunk: result[0] }, { status: 201 });
   } catch {

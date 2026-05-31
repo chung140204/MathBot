@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { MAIN_MENU, SETTINGS_MENU, NavLink, TopicMenu } from '@/features/layout/components/SidebarNav';
+import AssistantWidget from '@/features/assistant/components/AssistantWidget';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -299,6 +300,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </div>
       </main>
+
+      <AssistantWidget />
     </div>
   );
 }

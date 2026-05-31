@@ -104,3 +104,26 @@ Tìm giao $(P)$ với các cạnh còn lại:
 Thiết diện $AMNQ...$ → tính diện tích bằng tích có hướng.
 
 Phương pháp: Tọa độ hóa → tìm giao điểm $(P)$ với các cạnh → tính diện tích đa giác.
+
+---
+[topic: VOLUME]
+[source: THPT QG - VDC Khoi non, khoang cach tu tam day den mat phang (SAB)]
+[difficulty: ADVANCED]
+[subTopic: vdc_khoi_non_khoang_cach_tam_day_den_mp_sab]
+[relatedTopics: SOLID_GEOMETRY]
+
+Bài: Cho khối nón có đỉnh $S$, chiều cao bằng $8$ và thể tích bằng $\frac{800\pi}{3}$. Gọi $A$ và $B$ là hai điểm thuộc đường tròn đáy sao cho $AB = 12$. Tính khoảng cách từ tâm của đường tròn đáy đến mặt phẳng $(SAB)$.
+
+Lời giải:
+Gọi $O$, $R$ lần lượt là tâm và bán kính đáy của khối nón; $K$, $H$ lần lượt là hình chiếu của $O$ lên $AB$ và $SK$. Khi đó khoảng cách từ tâm đường tròn đáy đến mặt phẳng $(SAB)$ bằng $OH$.
+
+Tìm bán kính đáy $R$ từ công thức thể tích khối nón $V = \frac{1}{3}\pi R^2 h$:
+$$R^2 = \frac{3V}{\pi h} = \frac{3 \cdot \frac{800\pi}{3}}{\pi \cdot 8} = 100 \Rightarrow R = 10$$
+
+Tính $OK$ (khoảng cách từ tâm $O$ đến dây $AB$). Trong tam giác vuông $OBK$ với $BK = \frac{AB}{2} = 6$:
+$$OK = \sqrt{OB^2 - BK^2} = \sqrt{R^2 - \left(\frac{AB}{2}\right)^2} = \sqrt{10^2 - 6^2} = 8$$
+
+Tính $OH$. Vì $SO \perp$ đáy nên $SO = h = 8$. Trong tam giác vuông $SOK$, đường cao $OH$ ứng với cạnh huyền $SK$:
+$$\frac{1}{OH^2} = \frac{1}{SO^2} + \frac{1}{OK^2} = \frac{1}{8^2} + \frac{1}{8^2} = \frac{2}{8^2} \Rightarrow OH^2 = 32 \Rightarrow OH = 4\sqrt{2}$$
+
+Vậy khoảng cách cần tìm là $OH = 4\sqrt{2}$. Đáp án C.

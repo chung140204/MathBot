@@ -78,6 +78,16 @@ _Last updated: 2025-04-10_
 | Score trend chart | ✅ | Weekly score bar chart implemented |
 | Weak topics highlight | ✅ | Auto-calculated for accuracy < 50% |
 
+## Guide Assistant module
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Feature knowledge base | ✅ | `src/features/assistant/lib/system-guide.ts` (role-aware) |
+| `POST /api/v1/assistant` (SSE stream) | ✅ | Auth + `aiLimiter`, NVIDIA fast model |
+| Floating widget UI | ✅ | `AssistantWidget.tsx`, mounted in `(dashboard)/layout.tsx` |
+| Deep-links + page context | ✅ | Markdown links intercepted → `router.push` |
+| Documentation | ✅ | `docs/ASSISTANT.md`, `API_SPEC.md` |
+
 ## Testing
 
 | Task | Status | Notes |
@@ -108,3 +118,4 @@ _Last updated: 2025-04-10_
 |------|--------|
 | 2025-04-10 | Project initialized, docs written |
 | 2025-04-12 | Integrated THPT 2025 format (TF, Short Answer) and finalized scoring |
+| 2026-05-31 | Added in-app Guide Assistant (usage-help chatbot) — see `ASSISTANT.md` |

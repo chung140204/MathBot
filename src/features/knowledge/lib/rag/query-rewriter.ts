@@ -90,7 +90,7 @@ export async function rewriteQuery(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
+    const timeout = setTimeout(() => controller.abort(), parseInt(process.env.REWRITE_TIMEOUT_MS || '2000', 10));
 
     const rewrittenQuery = await llmRewrite(query, recentHistory, controller.signal);
     clearTimeout(timeout);

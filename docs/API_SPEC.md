@@ -239,6 +239,46 @@ Delete a chat session and all its messages.
 
 ---
 
+## Guide Assistant – `/api/v1/assistant`
+
+In-app "how to use the system" assistant (NOT the math tutor — see `ASSISTANT.md`).
+
+### `POST /api/v1/assistant`
+
+Ask how to use a MathBot feature. Returns a **Server-Sent Events (SSE) stream**.
+
+**Request body:**
+```typescript
+{
+  message: string                  // Max 2000 characters
+  path?: string                    // Current page pathname, for context (max 200)
+  history?: {                      // Up to 10 prior turns
+    role: "user" | "assistant"
+    content: string                // Max 4000
+  }[]
+}
+```
+
+**Response:** `Content-Type: text/event-stream`
+```
+data: {"t":"Để làm một bài thi, vào "}
+
+data: {"t":"[Luyện tập](/practice)..."}
+
+data: [DONE]
+```
+
+- Each event carries one streamed token in `t`. `[DONE]` ends the stream.
+- The system prompt is built per role (student/teacher/admin) and is constrained to
+  the feature guide in `system-guide.ts` to avoid hallucinating non-existent pages.
+- Client uses `fetch` + `ReadableStream` (not `EventSource`).
+
+**Auth:** required. **Rate limit:** shared `aiLimiter` (20 req / 60s per user → `429 RATE_LIMITED`).
+
+**Possible errors:** `AUTH_REQUIRED` (401), `VALIDATION_ERROR` (400), `RATE_LIMITED` (429)
+
+---
+
 ## Analytics – `/api/v1/analytics`
 
 ### `GET /api/v1/analytics/overview`

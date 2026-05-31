@@ -33,6 +33,9 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        // Disable proxy (nginx/Vercel) buffering so early SSE events
+        // (session / rag_searching) reach the client immediately.
+        'X-Accel-Buffering': 'no',
       },
     });
   } catch (error: any) {

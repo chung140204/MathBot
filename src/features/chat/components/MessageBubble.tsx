@@ -102,7 +102,7 @@ export default function MessageBubble({ message, isStreaming = false, onEdit, on
         ) : (
           <div className="group w-full">
             <div className="px-6 py-5 text-[15px] leading-relaxed text-gray-800 w-full" style={{ background: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '1.25rem', boxShadow: '0 2px 12px -4px rgba(0,0,0,0.08)' }}>
-              <MarkdownRenderer content={message.content} />
+              <MarkdownRenderer content={message.content} isStreaming={isStreaming} />
               {isStreaming && <span className="inline-block w-1.5 h-5 ml-1 align-middle bg-emerald-500 animate-pulse rounded-sm" />}
               {!isStreaming && message.sources && message.sources.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-gray-100">

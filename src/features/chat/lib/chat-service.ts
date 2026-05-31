@@ -120,7 +120,8 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
   const saveUserMessage = async (): Promise<string | null> => {
     try {
       const msg = await prisma.chatMessage.create({ data: { chatSessionId: sessionId!, role: 'user', content: rawLastMessage } });
-      await prisma.chatSession.update({ where: { id: sessionId! }, data: { updatedAt: new Date() } });
+      // updatedAt is bumped once by saveAssistantMessage at the end of the turn —
+      // no separate write here (one less DB round trip off the critical path).
       return msg.id;
     } catch (dbError) {
       console.error('[Chat] Failed to save user message:', dbError);
@@ -177,6 +178,10 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       if (isNewSession) send(`data: ${JSON.stringify({ event: 'session', sessionId })}\n\n`);
       send(`data: ${JSON.stringify({ event: 'rag_searching' })}\n\n`);
 
+      // ── Latency instrumentation: stage timings, logged once at first token ──
+      const tStart = performance.now();
+      let ocrMs = 0, ragMs = 0, saveUserMs = 0, llmConnectMs = 0;
+
       // Student profile is independent of the query, so it always runs in the
       // background (overlaps with OCR and RAG below) — fetched here, awaited later.
       const profilePromise = prisma.studentProfile
@@ -196,21 +201,53 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       // (profilePromise still overlaps this — only RAG waits on the OCR result.)
       let extractedText = '';
       if (imageBase64) {
-        extractedText = await withRetry(() => nvidia.chat.completions.create({
-          model: process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-11b-vision-instruct',
-          messages: [{ role: 'user', content: [
-            // Verbatim transcription, NOT a summary. The old "ngắn gọn" (concise)
-            // wording made the vision model paraphrase and drop words (e.g. it turned
-            // "có đúng hai điểm cực trị thuộc khoảng (1;4)" into "đường ... (1;4)",
-            // losing "thuộc khoảng" so (1;4) read as a point, not an interval).
-            { type: 'text', text: 'Chép lại CHÍNH XÁC, NGUYÊN VĂN toàn bộ nội dung bài toán trong ảnh: giữ đúng TỪNG CHỮ, từng dấu tiếng Việt, mọi ký hiệu và công thức toán, và chép ĐẦY ĐỦ tất cả các phương án A, B, C, D. TUYỆT ĐỐI KHÔNG tóm tắt, KHÔNG rút gọn, KHÔNG sửa hay suy diễn đề. Nếu không chắc một chữ, cứ chép đúng như nhìn thấy. Chỉ trả về đề bài, không giải, không nhận xét.' },
-            { type: 'image_url', image_url: { url: imageBase64 } },
-          ] }],
-          max_tokens: 1024,
-          temperature: 0,
-        }))
-          .then(r => r.choices[0]?.message?.content ?? '')
-          .catch((e) => { console.error('[Chat] Vision OCR failed:', e); return ''; });
+        const tOcrStart = performance.now();
+        // Per-model timeouts: fail the light 11B fast, give the heavier 90B longer.
+        const timeout11b = parseInt(process.env.VISION_TIMEOUT_MS || '15000', 10);
+        const timeout90b = parseInt(process.env.VISION_FALLBACK_TIMEOUT_MS || '30000', 10);
+        // Verbatim transcription, NOT a summary. The old "ngắn gọn" (concise)
+        // wording made the vision model paraphrase and drop words (e.g. it turned
+        // "có đúng hai điểm cực trị thuộc khoảng (1;4)" into "đường ... (1;4)",
+        // losing "thuộc khoảng" so (1;4) read as a point, not an interval).
+        const visionPrompt = 'Chép lại CHÍNH XÁC, NGUYÊN VĂN toàn bộ nội dung bài toán trong ảnh: giữ đúng TỪNG CHỮ, từng dấu tiếng Việt, mọi ký hiệu và công thức toán, và chép ĐẦY ĐỦ tất cả các phương án A, B, C, D. TUYỆT ĐỐI KHÔNG tóm tắt, KHÔNG rút gọn, KHÔNG sửa hay suy diễn đề. Nếu không chắc một chữ, cứ chép đúng như nhìn thấy. Chỉ trả về đề bài, không giải, không nhận xét.';
+
+        // One vision attempt, bounded by its own timeout so a stalled/failed model
+        // still leaves the full budget for the fallback model.
+        const runVision = async (model: string, timeoutMs: number): Promise<string> => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          try {
+            const r = await nvidia.chat.completions.create({
+              model,
+              messages: [{ role: 'user', content: [
+                { type: 'text', text: visionPrompt },
+                { type: 'image_url', image_url: { url: imageBase64 } },
+              ] }],
+              max_tokens: 1024,
+              temperature: 0,
+            }, { signal: controller.signal });
+            return r.choices[0]?.message?.content ?? '';
+          } catch (e) {
+            console.error(`[Chat] Vision OCR failed (${model}):`, e);
+            return '';
+          } finally {
+            clearTimeout(timer);
+          }
+        };
+
+        // The light 11B model misreads/empties out on dense Vietnamese math images
+        // (it returns junk like "Câu hỏi này không có nội dung"). When that happens,
+        // retry with the stronger 90B vision model.
+        const unreadable = (t: string) =>
+          !t.trim() || t.trim().length < 15 ||
+          /không có nội dung|không đọc được|không nhận diện|no content|cannot read|unable to/i.test(t);
+
+        extractedText = await runVision(process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-11b-vision-instruct', timeout11b);
+        if (unreadable(extractedText)) {
+          console.log('[Chat] 11B vision unreadable → retry 90B');
+          extractedText = await runVision(process.env.NVIDIA_VISION_FALLBACK_MODEL || 'meta/llama-3.2-90b-vision-instruct', timeout90b);
+        }
+        ocrMs = Math.round(performance.now() - tOcrStart);
       }
 
       // RAG query: for images, search on the OCR'd problem (plus any typed text);
@@ -220,10 +257,12 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         : lastUserMessage;
 
       // RAG runs INSIDE the stream so the client receives rag_searching early.
+      const tRagStart = performance.now();
       const [ragResult, studentProfile] = await Promise.all([
         ragSearch(ragQuery, { mode, history: messages }).catch(() => ({ chunks: [] } as RagSearchResult)),
         profilePromise,
       ]);
+      ragMs = Math.round(performance.now() - tRagStart);
 
       const profileForPrompt: StudentProfileForPrompt | null = studentProfile
         ? {
@@ -272,10 +311,11 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         }
       }
 
-      // Save the question NOW, before the model runs. If the AI later fails or
-      // returns nothing, the question is already persisted — reopening the chat
-      // shows it (instead of an empty window).
-      const userMsgId = await saveUserMessage();
+      // Save the question WITHOUT blocking the model: the prompt never needs the
+      // saved id (only the 'saved' event at the end does), and the delete block
+      // above has already completed, so the create can't race it. Awaited later.
+      const tSaveStart = performance.now();
+      const userMsgIdPromise = saveUserMessage().then((id) => { saveUserMs = Math.round(performance.now() - tSaveStart); return id; });
 
       const systemPrompt = { role: 'system' as const, content: buildSystemPrompt(promptChunks, mode, profileForPrompt) };
 
@@ -351,6 +391,7 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
 
       let response: any;
       let lastError: any;
+      const tLlmStart = performance.now();
       for (const { client, model } of fallbackChain) {
         try {
           chatModel = model;
@@ -364,12 +405,14 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
           // 413 = request too large → fall through to the backup model.
           if (status === 429 || status === 403 || status === 503 || status === 413) {
             console.log(`[Chat] ${model} returned ${status}, trying next fallback...`);
-            await new Promise(r => setTimeout(r, 1000));
+            // Brief backoff before the backup (a full second only added latency).
+            await new Promise(r => setTimeout(r, 150));
             continue;
           }
           throw err; // Non-retryable error
         }
       }
+      llmConnectMs = Math.round(performance.now() - tLlmStart);
 
       if (!response) throw lastError;
 
@@ -387,6 +430,10 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
           }
           if (content) {
             if (thinkingStarted && !thinkingDone) { thinkingDone = true; send(`data: ${JSON.stringify({ event: 'thinking_end' })}\n\n`); }
+            if (!fullResponse) {
+              const ttftMs = Math.round(performance.now() - tStart);
+              console.log(`[Timing] ttft=${ttftMs}ms ocr=${ocrMs}ms rag=${ragMs}ms saveUser=${saveUserMs}ms llmConnect=${llmConnectMs}ms model=${chatModel} mode=${mode}`);
+            }
             fullResponse += content;
             send(`data: ${JSON.stringify({ content })}\n\n`);
           }
@@ -397,6 +444,7 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       }
 
       if (fullResponse) {
+        const userMsgId = await userMsgIdPromise;
         const assistantMsgId = await saveAssistantMessage(fullResponse);
         if (userMsgId && assistantMsgId) {
           send(`data: ${JSON.stringify({ event: 'saved', userMessageId: userMsgId, assistantMessageId: assistantMsgId })}\n\n`);

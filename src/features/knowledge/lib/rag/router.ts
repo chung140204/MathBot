@@ -173,7 +173,7 @@ function parseClassification(raw?: string): ClassifyResult {
 
 async function classifyWithLLM(message: string): Promise<ClassifyResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3000);
+  const timeout = setTimeout(() => controller.abort(), parseInt(process.env.CLASSIFY_TIMEOUT_MS || '2000', 10));
 
   try {
     const client = gemini ?? groq ?? nvidia;

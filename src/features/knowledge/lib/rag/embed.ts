@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import { cacheGetJson, cacheSetJson } from '@/shared/lib/cache';
 
 // Gemini embedding via REST API (OpenAI SDK does not support Gemini embeddings)
@@ -138,7 +138,7 @@ async function embedWithRetry(text: string): Promise<number[]> {
 
 export async function createEmbeddings(
   texts: string[],
-  concurrency: number = 2,
+  concurrency: number = parseInt(process.env.EMBED_CONCURRENCY || '4', 10),
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
 

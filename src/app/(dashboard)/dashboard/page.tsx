@@ -91,7 +91,7 @@ export default function DashboardPage() {
   }, []);
 
   const userName = (session?.user as { name?: string })?.name ?? 'bạn';
-  const firstName = userName.split(' ').pop() ?? userName;
+  const firstName = userName;
   const streak = data ? computeStreak(data.weeklyScores) : 0;
 
   // Calculate overall study progress
@@ -105,7 +105,7 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-900">
-            Chào {greeting()}, {firstName}!{' '}
+            {greeting()}, {firstName}!{' '}
             <span role="img" aria-label="wave">👋</span>
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -226,7 +226,7 @@ export default function DashboardPage() {
         {/* AI Chat card */}
         <div className="lg:col-span-2 bg-gradient-to-br from-[#059669] to-[#0891b2] rounded-2xl p-6 text-white flex flex-col justify-between shadow-md">
           <div>
-            <p className="text-lg font-black mb-2">🤖 Hỏi AI ngay</p>
+            <p className="text-lg font-black mb-2">🤖 Trợ lý Toán</p>
             <p className="text-sm text-white/80 leading-relaxed">
               Giải bài, giải thích lý thuyết, tư vấn lộ trình ôn thi 24/7
             </p>
