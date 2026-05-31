@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
+import { ErrorCode } from '@/shared/lib/errors';
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized', code: ErrorCode.AUTH_REQUIRED }, { status: 401 });
   }
 
   const userId = session.user.id;
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     } else if (requestedUserId) {
       // Validate requested user ID matches session user ID
       if (requestedUserId !== userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        return NextResponse.json({ error: 'Forbidden', code: ErrorCode.AUTH_FORBIDDEN }, { status: 403 });
       }
       
       // Get 50 latest sessions for the user
@@ -43,11 +44,11 @@ export async function GET(request: Request) {
       });
       return NextResponse.json(sessions);
     } else {
-      return NextResponse.json({ error: 'Missing userId or sessionId parameter' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing userId or sessionId parameter', code: ErrorCode.VALIDATION_ERROR }, { status: 400 });
     }
   } catch (error) {
     console.error('Error fetching chat data:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });
   }
 }
 
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized', code: ErrorCode.AUTH_REQUIRED }, { status: 401 });
   }
 
   const userId = session.user.id;
@@ -71,25 +72,25 @@ export async function POST(request: Request) {
     return NextResponse.json(newSession);
   } catch (error) {
     console.error('Error creating chat session:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session) return NextResponse.json({ error: 'Unauthorized', code: ErrorCode.AUTH_REQUIRED }, { status: 401 });
 
   const userId = session.user.id;
 
   try {
     const { sessionId, title } = await request.json();
     if (!sessionId || !title?.trim()) {
-      return NextResponse.json({ error: 'Missing sessionId or title' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing sessionId or title', code: ErrorCode.VALIDATION_ERROR }, { status: 400 });
     }
 
     const chatSession = await prisma.chatSession.findUnique({ where: { id: sessionId } });
     if (!chatSession || chatSession.userId !== userId) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Session not found', code: ErrorCode.NOT_FOUND }, { status: 404 });
     }
 
     await prisma.chatSession.update({
@@ -100,7 +101,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error renaming session:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });
   }
 }
 
@@ -108,7 +109,7 @@ export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
   
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized', code: ErrorCode.AUTH_REQUIRED }, { status: 401 });
   }
 
   const userId = session.user.id;
@@ -116,7 +117,7 @@ export async function DELETE(request: Request) {
   const sessionId = searchParams.get('sessionId');
 
   if (!sessionId) {
-    return NextResponse.json({ error: 'Missing sessionId parameter' }, { status: 400 });
+    return NextResponse.json({ error: 'Missing sessionId parameter', code: ErrorCode.VALIDATION_ERROR }, { status: 400 });
   }
 
   try {
@@ -126,7 +127,7 @@ export async function DELETE(request: Request) {
     });
 
     if (!chatSession || chatSession.userId !== userId) {
-      return NextResponse.json({ error: 'Session not found or forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Session not found or forbidden', code: ErrorCode.AUTH_FORBIDDEN }, { status: 403 });
     }
 
     await prisma.chatSession.delete({
@@ -136,6 +137,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting chat session:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });
   }
 }

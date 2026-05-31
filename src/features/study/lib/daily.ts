@@ -90,7 +90,7 @@ function varietyBonus(topic: Topic, userId: string, dateStr: string): number {
 
 // ─── Difficulty suggestion ──────────────────────────────────────────────────
 
-function suggestDifficulty(stats: TopicStats | null): string {
+export function suggestDifficulty(stats: TopicStats | null): string {
   if (!stats || stats.totalQuestions < 5) return 'RECOGNITION';
   const { accuracy } = stats;
   if (accuracy >= 85) return 'ADVANCED';

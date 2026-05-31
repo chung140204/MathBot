@@ -3,6 +3,9 @@ import prisma from '@/shared/lib/db';
 import { requireRole } from '@/shared/lib/auth-helpers';
 import { ErrorCode } from '@/shared/lib/errors';
 import { flags } from '@/shared/lib/flags';
+import { getOrSetJson } from '@/shared/lib/cache';
+
+const ASSIGNMENT_ANALYTICS_TTL_S = 120; // 2 minutes — live-ish during a class
 
 type Ctx = { params: Promise<{ id: string; assignmentId: string }> };
 
@@ -40,6 +43,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       return NextResponse.json({ error: 'Assignment not found', code: ErrorCode.ASSIGNMENT_NOT_FOUND }, { status: 404 });
     }
 
+    const payload = await getOrSetJson(`stats:assignment:${assignmentId}`, ASSIGNMENT_ANALYTICS_TTL_S, async () => {
     const questionIds = assignment.examSet.questions.map(esq => esq.question.id);
 
     // 2. Run all stats queries in parallel (instead of sequential)
@@ -99,7 +103,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       };
     });
 
-    return NextResponse.json({
+    return {
       assignmentId,
       examSetTitle: assignment.examSet.title,
       totalMembers,
@@ -107,7 +111,10 @@ export async function GET(_req: Request, { params }: Ctx) {
       totalAttempts,
       avgScore: avgScore !== null ? Math.round(avgScore * 10) / 10 : null,
       questions,
+    };
     });
+
+    return NextResponse.json(payload);
   } catch (error) {
     console.error('[teacher/classrooms/[id]/assignments/[assignmentId]/analytics] GET error:', error);
     return NextResponse.json({ error: 'Internal server error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });

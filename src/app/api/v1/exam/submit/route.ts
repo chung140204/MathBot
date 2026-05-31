@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
+import { cacheDel } from '@/shared/lib/cache';
 import { scoreQuestion, THPT_SCORING, DEFAULT_SCORING } from '@/features/exam/lib/scoring';
 import { ExamMode } from '@prisma/client';
 
@@ -75,6 +76,14 @@ export async function POST(req: Request) {
         },
       },
     });
+
+    // Stats changed — drop this user's cached analytics so dashboards stay fresh.
+    const uid = session.user.id;
+    await Promise.all([
+      cacheDel(`stats:overview:${uid}`),
+      cacheDel(`stats:suggestions:${uid}`),
+      cacheDel(`stats:studyplan:${uid}`),
+    ]);
 
     return NextResponse.json({
       success: true,

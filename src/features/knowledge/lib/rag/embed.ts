@@ -1,4 +1,6 @@
 import OpenAI from 'openai';
+import { createHash } from 'crypto';
+import { cacheGetJson, cacheSetJson } from '@/shared/lib/cache';
 
 // Gemini embedding via REST API (OpenAI SDK does not support Gemini embeddings)
 // Using outputDimensionality=768 to stay within pgvector HNSW/IVFFlat 2000-dim limit
@@ -48,6 +50,20 @@ function setCachedEmbedding(text: string, embedding: number[]): void {
   embedCache.set(key, { embedding, expiresAt: Date.now() + EMBED_CACHE_TTL_MS });
 }
 
+// ── Embedding Cache L2 (Upstash Redis — persistent, shared) ──────────
+// Embeddings are deterministic for a given (model, text), so they can be cached for a long time.
+const REDIS_EMBED_TTL_S = 30 * 24 * 60 * 60; // 30 days
+
+function embedRedisKey(text: string): string {
+  // Model is part of the key: different models produce different vectors / dimensions.
+  const model = process.env.GEMINI_API_KEY ? 'gemini-768' : NVIDIA_EMBED_MODEL;
+  const hash = createHash('sha256')
+    .update(text.slice(0, EMBED_MAX_CHARS))
+    .digest('hex')
+    .slice(0, 32);
+  return `embed:${model}:${hash}`;
+}
+
 async function geminiEmbed(text: string): Promise<number[]> {
   const key = process.env.GEMINI_API_KEY!;
   const res = await fetch(`${GEMINI_EMBED_URL}?key=${key}`, {
@@ -87,18 +103,33 @@ export async function createEmbedding(text: string): Promise<number[]> {
 }
 
 async function embedWithRetry(text: string): Promise<number[]> {
+  // L1 — in-memory (fastest, no network)
   const cached = getCachedEmbedding(text);
   if (cached) return cached;
 
+  // L2 — Redis (persistent across restarts, shared across instances)
+  const redisKey = embedRedisKey(text);
+  const fromRedis = await cacheGetJson<number[]>(redisKey);
+  if (Array.isArray(fromRedis) && fromRedis.length > 0) {
+    setCachedEmbedding(text, fromRedis); // warm L1 for next time
+    return fromRedis;
+  }
+
+  // Miss on both tiers — call the embedding API, then populate both caches.
+  const persist = async (result: number[]) => {
+    setCachedEmbedding(text, result);
+    await cacheSetJson(redisKey, result, REDIS_EMBED_TTL_S);
+  };
+
   try {
     const result = await createEmbedding(text);
-    setCachedEmbedding(text, result);
+    await persist(result);
     return result;
   } catch (error: any) {
     if (error?.status === 429) {
       await new Promise((r) => setTimeout(r, 2000));
       const result = await createEmbedding(text);
-      setCachedEmbedding(text, result);
+      await persist(result);
       return result;
     }
     throw error;

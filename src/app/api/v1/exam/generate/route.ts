@@ -7,6 +7,7 @@ import {
   generateQuickExam,
   generateStandardExam,
   generateThptExam,
+  generateAdaptiveExam,
 } from '@/features/exam/lib/exam-generator';
 
 const TopicEnum = z.enum([
@@ -35,10 +36,15 @@ const thptSchema = z.object({
   mode: z.literal('thpt'),
 });
 
+const adaptiveSchema = z.object({
+  mode: z.literal('adaptive'),
+});
+
 const generateSchema = z.discriminatedUnion('mode', [
   quickSchema,
   standardSchema,
   thptSchema,
+  adaptiveSchema,
 ]);
 
 export async function POST(req: Request) {
@@ -65,6 +71,9 @@ export async function POST(req: Request) {
         break;
       case 'thpt':
         result = await generateThptExam();
+        break;
+      case 'adaptive':
+        result = await generateAdaptiveExam(session.user.id);
         break;
     }
 

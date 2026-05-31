@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
+import { getOrSetJson } from '@/shared/lib/cache';
 import { startOfToday, subDays } from 'date-fns';
+
+const ADMIN_STATS_TTL_S = 300; // 5 minutes — system-wide totals, not time-sensitive
 
 export async function GET() {
     const session = await getServerSession(authOptions);
@@ -11,6 +14,7 @@ export async function GET() {
     }
 
   try {
+    const payload = await getOrSetJson('stats:admin:dashboard', ADMIN_STATS_TTL_S, async () => {
     const today = startOfToday();
     const weekAgo = subDays(today, 7);
     const twoWeeksAgo = subDays(today, 14);
@@ -45,7 +49,7 @@ export async function GET() {
       return pct >= 0 ? `+${pct}%` : `${pct}%`;
     };
 
-    return NextResponse.json({
+    return {
       totalUsers,
       totalQuestions,
       examsToday,
@@ -54,7 +58,10 @@ export async function GET() {
       questionsTrend: `+${totalQuestions}`,
       examsTrend: trendStr(examsThisWeek, examsPrevWeek),
       aiTrend: trendStr(chatsThisWeek, chatsPrevWeek),
+    };
     });
+
+    return NextResponse.json(payload);
   } catch (error: unknown) {
     console.error('Admin Stats Error:', error);
     return NextResponse.json({ 

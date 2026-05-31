@@ -26,6 +26,8 @@ export default function ClassroomExamClient({ classroomId, assignmentId }: { cla
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // Mốc bắt đầu để đo thời gian làm bài thật (kể cả khi bài tập không giới hạn giờ).
+  const startedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     fetch(`/api/v1/classroom/${classroomId}/assignments/${assignmentId}/start`, { method: 'POST' })
@@ -35,6 +37,7 @@ export default function ClassroomExamClient({ classroomId, assignmentId }: { cla
         setTitle(data.title || '');
         setTimeLimit(data.timeLimit || null);
         if (data.timeLimit) setTimeLeft(data.timeLimit);
+        startedAtRef.current = Date.now();
       })
       .catch(async (r) => {
         if (r instanceof Response) { const d = await r.json(); setError(d.error || 'Lỗi'); }
@@ -47,10 +50,15 @@ export default function ClassroomExamClient({ classroomId, assignmentId }: { cla
     if (submitting) return;
     setSubmitting(true);
     const answerList: Answer[] = questions.map(q => answers[q.id] || { questionId: q.id });
+    // Thời gian làm bài thật = đồng hồ bấm giờ từ lúc bắt đầu (chính xác kể cả khi
+    // không giới hạn giờ). Fallback về (timeLimit - timeLeft) nếu thiếu mốc bắt đầu.
+    const elapsedSecs = startedAtRef.current
+      ? Math.floor((Date.now() - startedAtRef.current) / 1000)
+      : (timeLimit ? timeLimit - (timeLeft || 0) : 0);
     try {
       const res = await fetch(`/api/v1/classroom/${classroomId}/assignments/${assignmentId}/submit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers: answerList, timeTakenSecs: timeLimit ? (timeLimit - (timeLeft || 0)) : 0 }),
+        body: JSON.stringify({ answers: answerList, timeTakenSecs: Math.max(0, elapsedSecs) }),
       });
       if (res.ok) {
         const result = await res.json();

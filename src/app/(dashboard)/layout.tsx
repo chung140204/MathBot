@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [realStats, setRealStats] = useState<Record<string, number> | null>(null);
-  const [isTopicsOpen, setIsTopicsOpen] = useState(true);
+  const [isTopicsOpen, setIsTopicsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   
@@ -181,10 +181,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <ul className="space-y-0.5">
               {menuItems.map((link) => (
                 <li key={link.href}>
-                  {link.href === '/study' && pathname.startsWith('/study') && !isCollapsed ? (
+                  {link.href === '/study' && !isCollapsed ? (
                     <button
                       onClick={() => setIsTopicsOpen(!isTopicsOpen)}
-                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all group bg-gradient-to-r from-[#d1fae5] to-[#e0f2fe] text-[#059669]"
+                      aria-expanded={isTopicsOpen}
+                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-semibold transition-all group ${
+                        pathname.startsWith('/study')
+                          ? 'bg-gradient-to-r from-[#d1fae5] to-[#e0f2fe] text-[#059669]'
+                          : 'text-gray-500 hover:bg-[#f0fdf9] hover:text-[#059669]'
+                      }`}
                     >
                       <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
                         {link.icon}

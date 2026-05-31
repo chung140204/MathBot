@@ -11,6 +11,7 @@ import {
   accuracyTextClass, dotBgClass, scoreRingClass,
   Skeleton, MetricCard, ScoreBarChart, StreakCalendar,
 } from '@/features/progress/components/ProgressSubComponents';
+import { ErrorPatternsPanel } from '@/features/progress/components/ErrorPatternsPanel';
 
 function scoreColor(pct: number) { return pct >= 70 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626'; }
 
@@ -196,6 +197,9 @@ export default function ProgressPage() {
             )}
         </div>
       </div>
+
+      {/* Error patterns (renders nothing if no data) */}
+      <ErrorPatternsPanel />
     </div>
   );
 }

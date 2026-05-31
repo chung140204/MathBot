@@ -1,6 +1,8 @@
 import { Difficulty, QuestionFormat, Topic } from '@prisma/client';
 import prisma from '@/shared/lib/db';
 import { AppError, ErrorCode } from '@/shared/lib/errors';
+import { getUserTopicStats } from '@/features/study/lib/topic-stats';
+import { suggestDifficulty, type TopicStats } from '@/features/study/lib/daily';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -456,6 +458,171 @@ export async function generateThptExam(): Promise<ExamResult> {
       pointPerTFItem: 0.25, // but THPT uses step scoring (handled in scoring.ts)
       pointPerSA: 0.5,
       totalPoints: 10,
+    },
+  };
+}
+
+// ─── Adaptive Mode: 20 questions weighted toward a student's weak topics ────
+
+/**
+ * Distribute `total` across `weights` proportionally using largest-remainder
+ * rounding so the parts sum to exactly `total`. Each weight is clamped to a
+ * minimum of 1 so every chosen topic receives at least a fractional share.
+ */
+function distributeByWeight(total: number, weights: number[]): number[] {
+  const safeWeights = weights.map((w) => Math.max(1, w));
+  const weightSum = safeWeights.reduce((s, w) => s + w, 0);
+
+  const exact = safeWeights.map((w) => (w / weightSum) * total);
+  const floors = exact.map((v) => Math.floor(v));
+  let assigned = floors.reduce((s, v) => s + v, 0);
+
+  // Hand out the remaining units to the largest fractional remainders.
+  const remainders = exact
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac);
+
+  let r = 0;
+  while (assigned < total && remainders.length > 0) {
+    floors[remainders[r % remainders.length].i] += 1;
+    assigned += 1;
+    r += 1;
+  }
+
+  return floors;
+}
+
+export async function generateAdaptiveExam(userId: string): Promise<ExamResult> {
+  const statsMap = await getUserTopicStats(userId);
+
+  // Brand-new student (no practice history): fall back to a standard exam so
+  // they aren't blocked from generating one.
+  const totalAnswered = Array.from(statsMap.values()).reduce(
+    (sum, s) => sum + s.totalQuestions,
+    0,
+  );
+  if (statsMap.size === 0 || totalAnswered === 0) {
+    return await generateStandardExam(ALL_TOPICS as string[]);
+  }
+
+  const allStats = Array.from(statsMap.values());
+
+  // Weakest first (accuracy < 60), sorted ascending by accuracy.
+  const weakStats = allStats
+    .filter((s) => s.accuracy < 60)
+    .sort((a, b) => a.accuracy - b.accuracy);
+
+  const chosen: TopicStats[] = [...weakStats];
+
+  // Top up with the most stale topics (oldest lastPracticed first; never
+  // practiced = most stale) until we have up to 3–4 target topics.
+  if (chosen.length < 3) {
+    const chosenTopics = new Set(chosen.map((s) => s.topic));
+    const staleStats = allStats
+      .filter((s) => !chosenTopics.has(s.topic))
+      .sort((a, b) => {
+        const at = a.lastPracticed ? a.lastPracticed.getTime() : -Infinity;
+        const bt = b.lastPracticed ? b.lastPracticed.getTime() : -Infinity;
+        return at - bt; // oldest / never-practiced first
+      });
+
+    for (const s of staleStats) {
+      if (chosen.length >= 3) break;
+      chosen.push(s);
+    }
+  }
+
+  // Cap at 4 target topics.
+  const targets = chosen.slice(0, 4);
+
+  const totalQuestions = 20;
+
+  // Allocate more questions to weaker topics: weight = (100 - accuracy).
+  const weights = targets.map((s) => 100 - s.accuracy);
+  const allocation = distributeByWeight(totalQuestions, weights);
+
+  const selectedIds = new Set<string>();
+  const selected: ExamQuestion[] = [];
+
+  // Per-topic fill with a fallback cascade mirroring generateStandardExam.
+  for (let t = 0; t < targets.length; t++) {
+    const stats = targets[t];
+    const needed = allocation[t];
+    if (needed <= 0) continue;
+
+    const difficulty = suggestDifficulty(stats) as Difficulty;
+
+    // Level 0: target topic at suggested difficulty.
+    const exact = await prisma.question.findMany({
+      where: {
+        isActive: true,
+        topic: stats.topic,
+        difficulty,
+        id: { notIn: Array.from(selectedIds) },
+      },
+      select: SAFE_SELECT,
+    });
+    let picked = shuffle(exact).slice(0, needed);
+    for (const q of picked) {
+      selectedIds.add(q.id);
+      selected.push(toExamQuestion(q));
+    }
+
+    // Level 1: relax difficulty — any difficulty for this topic.
+    let shortfall = needed - picked.length;
+    if (shortfall > 0) {
+      const relaxed = await prisma.question.findMany({
+        where: {
+          isActive: true,
+          topic: stats.topic,
+          id: { notIn: Array.from(selectedIds) },
+        },
+        select: SAFE_SELECT,
+      });
+      picked = shuffle(relaxed).slice(0, shortfall);
+      for (const q of picked) {
+        selectedIds.add(q.id);
+        selected.push(toExamQuestion(q));
+      }
+    }
+  }
+
+  // Final fallback: top up from any chosen topic to reach the target count.
+  const finalShortfall = totalQuestions - selected.length;
+  if (finalShortfall > 0) {
+    const fallback = await prisma.question.findMany({
+      where: {
+        isActive: true,
+        topic: { in: targets.map((s) => s.topic) },
+        id: { notIn: Array.from(selectedIds) },
+      },
+      select: SAFE_SELECT,
+    });
+    const picked = shuffle(fallback).slice(0, finalShortfall);
+    for (const q of picked) {
+      selectedIds.add(q.id);
+      selected.push(toExamQuestion(q));
+    }
+  }
+
+  if (selected.length < 10) {
+    throw new AppError(
+      `Chỉ tìm được ${selected.length} câu hỏi phù hợp, cần ít nhất 10.`,
+      ErrorCode.EXAM_INSUFFICIENT_QUESTIONS,
+      400,
+      { selected: selected.length, minimum: 10 },
+    );
+  }
+
+  return {
+    questions: shuffle(selected),
+    mode: 'standard', // scored as 1 point/question like a standard exam
+    timeLimit: 30 * 60, // 30 minutes
+    scoring: {
+      pointPerMC: 1,
+      pointPerTFItem: 0.25,
+      pointPerSA: 1,
+      totalPoints: selected.length,
     },
   };
 }

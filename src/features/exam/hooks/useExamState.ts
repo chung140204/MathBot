@@ -146,6 +146,8 @@ export function useExamState() {
       if (difficulty) requestBody.difficulty = difficulty;
     } else if (mode === 'thpt') {
       requestBody = { mode: 'thpt' };
+    } else if (mode === 'adaptive') {
+      requestBody = { mode: 'adaptive' };
     } else {
       const topicsStr = params.get('topics');
       const topics = topicsStr?.split(',').filter(Boolean) || [];

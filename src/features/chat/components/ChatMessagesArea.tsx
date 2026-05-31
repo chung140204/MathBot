@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import MessageBubble from './MessageBubble';
 import { TOPIC_LABEL } from '@/shared/constants/topics';
 import type { Topic } from '@prisma/client';
@@ -82,9 +83,18 @@ export function ChatMessagesArea({
                 <p className="text-sm mb-2" style={{ color: '#475569' }}>Mình là gia sư toán của em — gửi bài hoặc hỏi bất kỳ điều gì, mình cùng em đi từng bước nhé.</p>
               </>
             )}
-            <div className="flex items-center gap-3 mb-8 text-[11px] text-gray-400 font-medium">
+            <div className="flex items-center gap-3 mb-4 text-[11px] text-gray-400 font-medium">
               <span>📸 Gửi ảnh bài toán</span><span>·</span><span>📚 Tra cứu tài liệu</span><span>·</span><span>🧠 Suy nghĩ từng bước</span>
             </div>
+            <Link
+              href="/plan"
+              className="mb-8 inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl transition-colors"
+              style={{ background: '#fff', border: '0.5px solid #e2e8f0', color: '#475569' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#059669'; (e.currentTarget as HTMLAnchorElement).style.color = '#059669'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.borderColor = '#e2e8f0'; (e.currentTarget as HTMLAnchorElement).style.color = '#475569'; }}
+            >
+              <span>📋</span><span>Xem kế hoạch học hôm nay</span>
+            </Link>
             <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
               {suggestions.map((s) => (
                 <button key={s.text} onClick={() => handleSend(s.text)}

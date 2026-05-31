@@ -291,6 +291,49 @@ export function splitBySection(combinedText: string): { phan1: string; phan2: st
 }
 
 // ---------------------------------------------------------------------------
+// Markdown table stripping
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove markdown table blocks from text.
+ *
+ * Used when a data table has already been captured as a cropped figure image,
+ * so keeping the textual markdown table duplicates it (shown as both text and
+ * image). A markdown table is detected as a run of 2+ consecutive "pipe rows"
+ * (a trimmed line starting with '|' and containing at least 2 '|').
+ *
+ * Single stray lines containing '|' are left untouched (need 2+ rows to qualify
+ * as a real table: header + separator/body).
+ */
+export function stripMarkdownTable(content: string): string {
+  if (!content || !content.includes('|')) return content;
+
+  const isTableRow = (l: string): boolean => {
+    const t = l.trim();
+    return t.startsWith('|') && (t.match(/\|/g)?.length ?? 0) >= 2;
+  };
+
+  const lines = content.split('\n');
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (isTableRow(lines[i])) {
+      let j = i;
+      while (j < lines.length && isTableRow(lines[j])) j++;
+      if (j - i >= 2) {
+        i = j; // drop the whole table block
+        continue;
+      }
+    }
+    out.push(lines[i]);
+    i++;
+  }
+
+  // Collapse the blank gap left behind, trim trailing/leading whitespace.
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// ---------------------------------------------------------------------------
 // OCR typo fixing
 // ---------------------------------------------------------------------------
 

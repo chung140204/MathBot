@@ -9,6 +9,7 @@ import {
   Skeleton, MetricCard,
 } from '@/features/progress/components/ProgressSubComponents';
 import { DashboardTopicsPanel } from '@/features/admin/components/dashboard/DashboardTopicsPanel';
+import { TargetProgress } from './TargetProgress';
 
 const WeeklyChart = dynamic(() => import('./WeeklyChart'), {
   ssr: false,
@@ -51,6 +52,7 @@ type OverviewData = {
   weeklyScores: WeeklyScore[];
   recentAttempts: RecentAttempt[];
   weakTopics: string[];
+  targetScore: string | null;
 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -191,6 +193,15 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : null}
+
+      {/* ── Tiến độ mục tiêu ── */}
+      {!loading && data && (
+        <TargetProgress
+          averageScore={data.averageScore}
+          bestScore={data.bestScore}
+          targetScore={data.targetScore}
+        />
+      )}
 
       {/* ── Chart + AI Card ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
+import { getOrSetJson } from '@/shared/lib/cache';
+
+const CONTENT_STATS_TTL_S = 300; // 5 minutes
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -10,6 +13,7 @@ export async function GET() {
   }
 
   try {
+    const payload = await getOrSetJson('stats:admin:content', CONTENT_STATS_TTL_S, async () => {
     let theory = 0;
     let practice = 0;
     let thptExams = 0;
@@ -27,12 +31,15 @@ export async function GET() {
     if (results[2].status === 'fulfilled') thptExams = results[2].value;
     if (results[3].status === 'fulfilled') knowledgeChunks = results[3].value;
 
-    return NextResponse.json({
+    return {
       theory,
       practice,
       thptExams,
       knowledgeChunks,
+    };
     });
+
+    return NextResponse.json(payload);
   } catch (error: unknown) {
     console.error('[Content Stats] Error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

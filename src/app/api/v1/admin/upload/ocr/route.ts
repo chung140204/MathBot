@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import { runOcrPipeline } from '@/features/ocr/lib/ocr-pipeline';
+import { ocrLimiter, enforceRateLimit, getClientIp } from '@/shared/lib/rate-limit';
 
 const MAX_IMAGES = 8;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB per image
@@ -21,6 +22,9 @@ export async function POST(req: NextRequest) {
   if (!session || !['ADMIN', 'TEACHER'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const limited = await enforceRateLimit(ocrLimiter, session.user.id ?? getClientIp(req));
+  if (limited) return limited;
 
   try {
     const formData = await req.formData();

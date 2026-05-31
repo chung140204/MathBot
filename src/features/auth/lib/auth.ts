@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import prisma from '@/shared/lib/db';
+import { authLimiter, getClientIp } from '@/shared/lib/rate-limit';
 
 if (!process.env.NEXTAUTH_SECRET && process.env.NODE_ENV !== 'production') {
   console.warn('NEXTAUTH_SECRET is not defined in environment variables.');
@@ -15,9 +16,15 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Mật khẩu', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Vui lòng nhập email và mật khẩu.');
+        }
+
+        const ip = getClientIp(req);
+        const { success } = await authLimiter.limit(`login:${ip}:${credentials.email}`);
+        if (!success) {
+          throw new Error('Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau 1 phút.');
         }
 
         const user = await prisma.user.findUnique({

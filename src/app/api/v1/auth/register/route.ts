@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { neon } from '@neondatabase/serverless';
+import { authLimiter, enforceRateLimit, getClientIp } from '@/shared/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = await enforceRateLimit(authLimiter, `register:${getClientIp(req)}`);
+    if (limited) return limited;
+
     const body = await req.json();
     const { name, email, password } = body;
 

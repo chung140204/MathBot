@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import { chatRequestSchema, checkRateLimit, createChatStream } from '@/features/chat/lib/chat-service';
+import { aiLimiter, enforceRateLimit } from '@/shared/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Bạn cần đăng nhập để sử dụng chat.' }, { status: 401 });
+
+    const limited = await enforceRateLimit(aiLimiter, session.user.id);
+    if (limited) return limited;
 
     if (!checkRateLimit(session.user.id))
       return NextResponse.json({ error: 'Bạn gửi tin nhắn quá nhanh. Vui lòng đợi một chút.' }, { status: 429 });

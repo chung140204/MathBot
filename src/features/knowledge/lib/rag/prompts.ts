@@ -35,7 +35,17 @@ export function buildSystemPrompt(
 
 // Persona is intentionally warm and human. Brand name stays "MathBot" but the
 // voice is that of a patient personal tutor, not a tool.
-const PERSONA =
+//
+// PERSONA_BASE — used by the Solver prompt (fast/thinking). Warm and friendly,
+// but framed around answering THIS question well, NOT long-term companionship.
+const PERSONA_BASE =
+  'Bạn là MathBot — trợ lý giải toán cho học sinh THPT Việt Nam ôn thi đại học (THPT Quốc gia). ' +
+  'Hãy nói chuyện ấm áp, kiên nhẫn và gần gũi như một anh/chị gia sư thật: gọi học sinh là "em", xưng "mình/thầy", ' +
+  'động viên tự nhiên. Tập trung giải tốt câu hỏi hiện tại.';
+
+// PERSONA_TUTOR — used only by the Tutor prompt. Adds the long-term companion
+// framing (learning together across many sessions) that defines the tutor mode.
+const PERSONA_TUTOR =
   'Bạn là MathBot — gia sư toán riêng, đồng hành lâu dài cùng học sinh THPT Việt Nam ôn thi đại học (THPT Quốc gia). ' +
   'Hãy nói chuyện ấm áp, kiên nhẫn và gần gũi như một anh/chị gia sư thật: gọi học sinh là "em", xưng "mình/thầy", ' +
   'động viên tự nhiên, ghi nhớ rằng đây là quá trình học cùng nhau qua nhiều buổi chứ không phải một lần hỏi đáp máy móc.';
@@ -44,9 +54,18 @@ function topicLabel(topic: string): string {
   return TOPIC_LABEL[topic as Topic] ?? topic;
 }
 
-// Renders a short "HỒ SƠ HỌC SINH" block (capped ~600 chars) so the tutor can
-// personalise tone, difficulty and references. Returns '' when nothing useful.
-function buildProfileSection(profile?: StudentProfileForPrompt | null): string {
+// Renders a short "HỒ SƠ HỌC SINH" block (capped ~600 chars) so the model can
+// personalise tone and difficulty. Returns '' when nothing useful.
+//
+// `companion` controls the long-term-companion fields/guidance:
+//   - tutor mode (companion=true): full profile, including "Buổi trước học" and
+//     the "nhắc lại buổi học trước" guidance — this is the companion experience.
+//   - solver mode (companion=false, fast/thinking): only fields that improve the
+//     quality of THIS answer (level, weak/strong topics). No session recall.
+function buildProfileSection(
+  profile?: StudentProfileForPrompt | null,
+  companion: boolean = true,
+): string {
   if (!profile) return '';
   const lines: string[] = [];
   if (profile.studentName) lines.push(`- Tên học sinh: ${profile.studentName} (hãy gọi em bằng tên khi phù hợp)`);
@@ -57,22 +76,29 @@ function buildProfileSection(profile?: StudentProfileForPrompt | null): string {
   if (profile.strongTopics && profile.strongTopics.length > 0) {
     lines.push(`- Chủ đề đã vững: ${profile.strongTopics.slice(0, 3).map(topicLabel).join(', ')}`);
   }
-  if (profile.lastStudied) lines.push(`- Buổi trước học: ${profile.lastStudied}`);
-  if (profile.recurringErrors) lines.push(`- Lỗi hay mắc: ${profile.recurringErrors}`);
-  if (profile.goals) lines.push(`- Mục tiêu: ${profile.goals}`);
-  if (profile.summary) lines.push(`- Ghi chú: ${profile.summary}`);
+  // Companion-only fields: session recall + long-term context.
+  if (companion) {
+    if (profile.lastStudied) lines.push(`- Buổi trước học: ${profile.lastStudied}`);
+    if (profile.recurringErrors) lines.push(`- Lỗi hay mắc: ${profile.recurringErrors}`);
+    if (profile.goals) lines.push(`- Mục tiêu: ${profile.goals}`);
+    if (profile.summary) lines.push(`- Ghi chú: ${profile.summary}`);
+  }
 
   if (lines.length === 0) return '';
 
   let body = lines.join('\n');
   if (body.length > 600) body = body.slice(0, 597) + '...';
 
+  const guidance = companion
+    ? '→ Dựa vào hồ sơ này để cá nhân hóa: nhắc lại buổi học trước một cách tự nhiên, chú ý hơn ở chủ đề em còn yếu, và điều chỉnh độ khó/giọng điệu cho phù hợp trình độ.'
+    : '→ Dựa vào hồ sơ này để điều chỉnh độ khó và cách giải thích cho phù hợp trình độ của em.';
+
   return `=====================
 HỒ SƠ HỌC SINH (chỉ bạn biết — đừng đọc lại nguyên văn cho em)
 =====================
 ${body}
 
-→ Dựa vào hồ sơ này để cá nhân hóa: nhắc lại buổi học trước một cách tự nhiên, chú ý hơn ở chủ đề em còn yếu, và điều chỉnh độ khó/giọng điệu cho phù hợp trình độ.
+${guidance}
 
 `;
 }
@@ -163,13 +189,31 @@ FORMAT STREAMING
 - Công thức LaTeX lớn phải nằm trên dòng riêng
 - Mỗi bước giải cách nhau 1 dòng trống`;
 
+// Guard against weak vision OCR. When the problem comes from an image, the
+// extracted text often has OCR errors on Vietnamese diacritics (e.g.
+// "đúng"→"đường", "mỗi"→"mọi", a spurious derivative prime f→f', a dropped
+// "thuộc khoảng"). Without this, the solver has been seen declaring a perfectly
+// valid problem "vô nghĩa" instead of solving it.
+const OCR_INPUT_RULES = `=====================
+ĐỀ TỪ ẢNH (OCR) — TỰ SỬA LỖI ĐỌC
+=====================
+
+Khi đề có phần "[Nội dung từ ảnh]", văn bản đó do máy đọc ảnh nên CÓ THỂ sai: lệch dấu tiếng Việt, lẫn từ gần giống ("đúng"→"đường", "mỗi"→"mọi"), thừa/thiếu ký hiệu (f→f', mất cụm "thuộc khoảng", "∈" thành "e"...).
+
+- Hãy hiểu đề theo Ý ĐỊNH của một bài toán THPT chuẩn; tự sửa các lỗi OCR hiển nhiên rồi giải bình thường.
+- Nếu gặp cụm vô nghĩa về toán (vd "đường hai điểm cực trị"), tái dựng thành cụm chuẩn gần nhất ("đúng hai điểm cực trị") thay vì bắt lỗi đề.
+- TUYỆT ĐỐI KHÔNG kết luận đề "vô nghĩa", "sai", "thiếu dữ kiện" chỉ vì lỗi OCR — luôn cố giải phương án hợp lý nhất.
+- Chỉ khi thật sự mơ hồ giữa nhiều cách hiểu: chọn cách phổ biến nhất của dạng bài, nêu ngắn gọn giả định đã dùng, rồi giải.`;
+
 // ── Solver prompt (existing behavior) ─────────────────────────────────
 
 function buildSolverSystemPrompt(chunks: ChunkForPrompt[], profile?: StudentProfileForPrompt | null): string {
   const contextSection = buildContextSection(chunks, 'GIẢI');
-  const profileSection = buildProfileSection(profile);
+  // Solver (fast/thinking): no long-term companion framing — profile is used only
+  // to tune difficulty/explanation depth for THIS answer.
+  const profileSection = buildProfileSection(profile, false);
 
-  return `${PERSONA}
+  return `${PERSONA_BASE}
 
 Ở chế độ này em cần lời giải nhanh, đầy đủ — hãy giải trực tiếp nhưng vẫn giữ giọng thân thiện, gần gũi.
 ${contextSection}
@@ -206,6 +250,8 @@ Các kỹ thuật nâng cao cần sử dụng khi phù hợp:
 ${LANGUAGE_RULES}
 
 ${FORMAT_RULES}
+
+${OCR_INPUT_RULES}
 
 ${LATEX_RULES}
 
@@ -265,9 +311,10 @@ QUY TẮC
 
 function buildTutorSystemPrompt(chunks: ChunkForPrompt[], profile?: StudentProfileForPrompt | null): string {
   const contextSection = buildContextSection(chunks, 'HƯỚNG DẪN');
-  const profileSection = buildProfileSection(profile);
+  // Tutor: full companion profile (session recall + long-term context).
+  const profileSection = buildProfileSection(profile, true);
 
-  return `${PERSONA}
+  return `${PERSONA_TUTOR}
 ${contextSection}
 ${profileSection}=====================
 VAI TRÒ: GIA SƯ ĐỒNG HÀNH
@@ -373,6 +420,8 @@ ${ADAPTIVITY_RULES}
 ${LANGUAGE_RULES}
 
 ${FORMAT_RULES}
+
+${OCR_INPUT_RULES}
 
 ${LATEX_RULES}`;
 }

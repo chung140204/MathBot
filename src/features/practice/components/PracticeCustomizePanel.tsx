@@ -1,6 +1,6 @@
 'use client';
 
-type ExamMode = 'quick' | 'standard' | 'thpt';
+type ExamMode = 'quick' | 'standard' | 'thpt' | 'adaptive';
 type Difficulty = 'all' | 'RECOGNITION' | 'COMPREHENSION' | 'APPLICATION' | 'ADVANCED';
 
 const DIFFICULTIES: { key: Difficulty; label: string }[] = [
@@ -30,7 +30,7 @@ export function PracticeCustomizePanel({
   mode, topics, selectedTopics, difficulty, currentModeCount, currentModeTimeMins,
   starting, onToggleTopic, onSelectAll, onClearTopics, onSetDifficulty, onStart,
 }: Props) {
-  if (mode === 'thpt') return null;
+  if (mode === 'thpt' || mode === 'adaptive') return null;
 
   return (
     <section id="custom-section" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-6">

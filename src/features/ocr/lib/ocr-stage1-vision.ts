@@ -5,6 +5,9 @@
 import OpenAI from 'openai';
 import { THPT_PAGE_EXTRACTION_PROMPT } from '@/features/ocr/lib/ocr-prompt';
 import { extractPositions, fixUnicodeMath, type QuestionPosition } from '@/features/ocr/lib/ocr-text-utils';
+import { isProviderDown, tripProvider } from '@/shared/lib/circuit-breaker';
+
+const GEMINI_VISION_BREAKER = 'gemini-vision';
 
 export interface Base64Image {
   type: string;
@@ -51,31 +54,46 @@ export async function extractPageText(
     },
   ];
 
-  let usedFallback = false;
-
-  let res: Awaited<ReturnType<typeof clients.primary.chat.completions.create>>;
-  try {
-    res = await clients.primary.chat.completions.create({
-      model: clients.primaryModel,
+  const callFallback = () =>
+    clients.fallback.chat.completions.create({
+      model: clients.fallbackModel,
       messages: pageMessages,
       max_tokens: 4096,
       temperature: 0,
       stream: false,
     });
-  } catch (err: unknown) {
-    const status = (err as { status?: number })?.status;
-    if (status === 429 || status === 503) {
-      console.warn(`[OCR_API] Page ${pageIndex + 1}: primary vision ${status}, fallback to NVIDIA`);
-      usedFallback = true;
-      res = await clients.fallback.chat.completions.create({
-        model: clients.fallbackModel,
+
+  let usedFallback = false;
+
+  // Circuit breaker only applies when the primary is Gemini (different provider
+  // from the NVIDIA fallback). When primary is already NVIDIA there's nothing to skip.
+  const primaryIsGemini = clients.primaryModel.startsWith('gemini');
+
+  let res: Awaited<ReturnType<typeof clients.primary.chat.completions.create>>;
+  if (primaryIsGemini && (await isProviderDown(GEMINI_VISION_BREAKER))) {
+    // Circuit open — Gemini known to be rate-limited; skip straight to NVIDIA.
+    console.warn(`[OCR_API] Page ${pageIndex + 1}: Gemini circuit OPEN, using NVIDIA directly`);
+    usedFallback = true;
+    res = await callFallback();
+  } else {
+    try {
+      res = await clients.primary.chat.completions.create({
+        model: clients.primaryModel,
         messages: pageMessages,
         max_tokens: 4096,
         temperature: 0,
         stream: false,
       });
-    } else {
-      throw err;
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      if (status === 429 || status === 503) {
+        console.warn(`[OCR_API] Page ${pageIndex + 1}: primary vision ${status}, fallback to NVIDIA`);
+        if (primaryIsGemini) await tripProvider(GEMINI_VISION_BREAKER);
+        usedFallback = true;
+        res = await callFallback();
+      } else {
+        throw err;
+      }
     }
   }
 

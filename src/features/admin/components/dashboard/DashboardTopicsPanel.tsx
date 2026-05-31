@@ -102,7 +102,7 @@ export function DashboardTopicsPanel({ loading, data, studyProgress }: Dashboard
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-black text-gray-800">Lần thi gần đây</h2>
-            <Link href="/progress" className="text-xs font-bold text-[#059669] hover:text-[#0891b2] transition-colors">Tất cả</Link>
+            <Link href="/history" className="text-xs font-bold text-[#059669] hover:text-[#0891b2] transition-colors">Xem tất cả</Link>
           </div>
           {loading ? (
             <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>

@@ -29,8 +29,11 @@ const VN_DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const STREAK_GOAL = 10;
 
 export function formatStudyTime(secs: number) {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.max(0, Math.floor(secs));
+  // Dưới 1 phút: hiện giây để con số phản ánh đúng hoạt động (tránh luôn "0m").
+  if (s < 60) return `${s}s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   return h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}m`;
 }
 

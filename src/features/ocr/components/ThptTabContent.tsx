@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import MathRenderer from '@/shared/components/MathRenderer';
 import { TOPICS } from '@/shared/constants/topics';
 import { ExtractedQuestion } from '@/features/ocr/lib/ocr-prompt';
+import { stripMarkdownTable } from '@/features/ocr/lib/ocr-text-utils';
 import { useOcrExtraction } from '@/features/ocr/hooks/useOcrExtraction';
 import { useBeforeUnload } from '@/features/ocr/hooks/useBeforeUnload';
 import { FileDropZone } from './FileDropZone';
@@ -39,7 +40,11 @@ export default function ThptTabContent({ apiBasePath }: { apiBasePath: string })
             const file = new File([blob], `fig-q${q.questionNumber}.png`, { type: 'image/png' });
             const fd = new FormData(); fd.append('file', file);
             const res = await fetch(`${apiBasePath}/image`, { method: 'POST', body: fd });
-            if (res.ok) { const { url } = await res.json(); return { ...q, imageUrl: url }; }
+            if (res.ok) {
+              const { url } = await res.json();
+              // Table is now an image — drop the duplicate markdown table from content.
+              return { ...q, imageUrl: url, content: stripMarkdownTable(q.content) };
+            }
           } catch { /* upload failed */ }
           return q;
         }),
@@ -167,7 +172,7 @@ export default function ThptTabContent({ apiBasePath }: { apiBasePath: string })
                 </div>
               ) : (
                 <div className="mb-4 text-[13px] text-[#0f172a] leading-relaxed whitespace-pre-line">
-                  <MathRenderer content={q.content} />
+                  <MathRenderer content={ocr.questionFigures[q.questionNumber] ? stripMarkdownTable(q.content) : q.content} />
                 </div>
               )}
 

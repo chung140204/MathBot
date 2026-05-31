@@ -13,7 +13,7 @@ const TOPICS = CENTRAL_TOPICS.map(t => ({ key: t.id, label: t.label }));
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ExamMode = 'quick' | 'standard' | 'thpt';
+type ExamMode = 'quick' | 'standard' | 'thpt' | 'adaptive';
 type Difficulty = 'all' | 'RECOGNITION' | 'COMPREHENSION' | 'APPLICATION' | 'ADVANCED';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -56,6 +56,16 @@ const EXAM_MODES = [
     badgeClass: 'bg-purple-50 text-purple-600 border border-purple-200',
     count: 22,
     timeMins: 90,
+  },
+  {
+    key: 'adaptive' as ExamMode,
+    icon: '🎯',
+    title: 'Luyện theo điểm yếu',
+    desc: 'Đề tự sinh tập trung vào chủ đề bạn đang yếu',
+    badge: 'Cá nhân hóa',
+    badgeClass: 'bg-rose-50 text-rose-600 border border-rose-200',
+    count: 20,
+    timeMins: 30,
   },
 ];
 
@@ -129,7 +139,7 @@ export default function PracticePage() {
       if (selectedTopics.length > 0) params.set('topics', selectedTopics.join(','));
       if (difficulty !== 'all') params.set('difficulty', difficulty);
     }
-    // thpt: no extra params needed
+    // thpt & adaptive: no extra params needed (auto-selected server-side)
     return `/exam?${params.toString()}`;
   }
 
@@ -197,7 +207,7 @@ export default function PracticePage() {
       {/* ── Chọn chế độ thi ── */}
       <section>
         <h2 className="text-base font-black text-gray-900 mb-4">Chọn chế độ thi</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {EXAM_MODES.map((m) => (
             <button
               key={m.key}

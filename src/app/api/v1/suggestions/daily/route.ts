@@ -2,69 +2,35 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
-import { Topic } from '@prisma/client';
-import { computeDailySuggestions, type TopicStats } from '@/features/study/lib/daily';
+import { computeDailySuggestions } from '@/features/study/lib/daily';
+import { getUserTopicStats } from '@/features/study/lib/topic-stats';
+import { getOrSetJson } from '@/shared/lib/cache';
 import { format, subDays } from 'date-fns';
+import { ErrorCode } from '@/shared/lib/errors';
+
+const SUGGESTIONS_TTL_S = 300; // 5 minutes — invalidated on exam submit
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized', code: ErrorCode.AUTH_REQUIRED }, { status: 401 });
   }
 
   const userId = session.user.id;
 
   try {
-    // Lightweight query: per-topic accuracy + last practiced date
-    const attempts = await prisma.examAttempt.findMany({
-      where: { userId },
-      select: {
-        submittedAt: true,
-        answers: {
-          select: {
-            score: true,
-            question: { select: { topic: true } },
-          },
-        },
-      },
-    });
-
-    // Build per-topic stats
-    const statsMap = new Map<Topic, TopicStats>();
-
-    for (const attempt of attempts) {
-      for (const ans of attempt.answers) {
-        const topic = ans.question.topic;
-        let entry = statsMap.get(topic);
-        if (!entry) {
-          entry = {
-            topic,
-            totalQuestions: 0,
-            correctAnswers: 0,
-            accuracy: 0,
-            lastPracticed: null,
-          };
-          statsMap.set(topic, entry);
-        }
-        entry.totalQuestions += 1;
-        entry.correctAnswers += ans.score;
-
-        if (!entry.lastPracticed || attempt.submittedAt > entry.lastPracticed) {
-          entry.lastPracticed = attempt.submittedAt;
-        }
-      }
-    }
-
-    // Compute accuracy percentage
-    for (const entry of statsMap.values()) {
-      entry.accuracy = entry.totalQuestions > 0
-        ? Math.round((entry.correctAnswers / entry.totalQuestions) * 100)
-        : 0;
-    }
+    const payload = await getOrSetJson(`stats:suggestions:${userId}`, SUGGESTIONS_TTL_S, async () => {
+    // Per-topic accuracy + last practiced date via shared aggregation helper
+    const statsMap = await getUserTopicStats(userId);
 
     const suggestions = computeDailySuggestions(statsMap, userId);
 
-    // Quick streak calculation
+    // Distinct practice dates for the streak calculation
+    const attempts = await prisma.examAttempt.findMany({
+      where: { userId },
+      select: { submittedAt: true },
+    });
+
     const practiceDates = Array.from(new Set(
       attempts.map(a => format(a.submittedAt, 'yyyy-MM-dd'))
     )).sort((a, b) => b.localeCompare(a));
@@ -82,9 +48,12 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ suggestions, currentStreak });
+    return { suggestions, currentStreak };
+    });
+
+    return NextResponse.json(payload);
   } catch (error) {
     console.error('[Suggestions] Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });
   }
 }

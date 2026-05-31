@@ -4,8 +4,6 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ExtractedQuestion } from '@/features/ocr/lib/ocr-prompt';
 import { pdfToImages, cropPageImage } from '@/features/ocr/lib/pdf-to-images';
 
-const OCR_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -41,10 +39,46 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-function parseQuestionNumber(label: string | undefined): number | null {
-  if (!label) return null;
-  const match = label.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
+/** THPT section → question format. Part I = MC, Part II = TF, Part III = SA. */
+const SECTION_FORMAT: Record<string, ExtractedQuestion['format']> = {
+  I: 'MULTIPLE_CHOICE',
+  II: 'TRUE_FALSE',
+  III: 'SHORT_ANSWER',
+};
+
+/** Parse a figure label like "PHẦN III Câu 1" into its section + in-section number. */
+function parseSectionAndLocal(label: string | undefined): {
+  section: 'I' | 'II' | 'III' | null;
+  local: number | null;
+} {
+  if (!label) return { section: null, local: null };
+  const secMatch = label.match(/PH[ẦA]N\s+(III|II|I)\b/i);
+  const section = (secMatch?.[1]?.toUpperCase() as 'I' | 'II' | 'III' | undefined) ?? null;
+  const cauMatch = label.match(/C[âa]u\s*(\d+)/i) ?? label.match(/(\d+)/);
+  const local = cauMatch ? parseInt(cauMatch[1], 10) : null;
+  return { section, local };
+}
+
+/**
+ * Resolve a figure label to the GLOBAL question number (1–22).
+ *
+ * Figure labels carry an in-section number ("PHẦN III Câu 1"), but questions are
+ * keyed by the global questionNumber. Map by format: the N-th question of the
+ * section's format (sorted by questionNumber) → its global number. Falls back to
+ * the raw number when there is no section prefix (e.g. individual mode).
+ */
+function resolveGlobalQuestionNumber(
+  label: string | undefined,
+  questions: ExtractedQuestion[],
+): number | null {
+  const { section, local } = parseSectionAndLocal(label);
+  if (local === null) return null;
+  if (!section) return local; // no section info → the number already is global
+  const fmt = SECTION_FORMAT[section];
+  const inSection = questions
+    .filter((q) => q.format === fmt)
+    .sort((a, b) => a.questionNumber - b.questionNumber);
+  return inSection[local - 1]?.questionNumber ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +133,11 @@ export function useOcrExtraction(opts: UseOcrExtractionOptions) {
   );
 
   const autoCropFigures = useCallback(
-    async (positions: Record<number, PagePosition[]>, dataUrls: string[]) => {
+    async (
+      positions: Record<number, PagePosition[]>,
+      dataUrls: string[],
+      questionList: ExtractedQuestion[],
+    ) => {
       const figures: Record<number, string> = {};
       for (const [pageStr, entries] of Object.entries(positions)) {
         const pageNum = parseInt(pageStr, 10);
@@ -107,7 +145,8 @@ export function useOcrExtraction(opts: UseOcrExtractionOptions) {
         if (!dataUrl || !entries.length) continue;
         for (const pos of entries) {
           if (pos.type !== 'figure' && pos.type !== 'table') continue;
-          const qNum = parseQuestionNumber(pos.questionLabel);
+          // Map "PHẦN X Câu N" → global question number so the key matches q.questionNumber.
+          const qNum = resolveGlobalQuestionNumber(pos.questionLabel, questionList);
           if (qNum === null || figures[qNum]) continue;
           try {
             const cropped = await cropPageImage(dataUrl, pos.yStart, pos.yEnd, 0, pos.xStart ?? 0, pos.xEnd ?? 1);
@@ -152,7 +191,6 @@ export function useOcrExtraction(opts: UseOcrExtractionOptions) {
         abortRef.current?.abort();
         const abortController = new AbortController();
         abortRef.current = abortController;
-        const timeoutId = setTimeout(() => abortController.abort(), OCR_TIMEOUT_MS);
 
         const formData = new FormData();
         imageFiles.forEach((f) => formData.append('images', f));
@@ -203,8 +241,6 @@ export function useOcrExtraction(opts: UseOcrExtractionOptions) {
           }
         }
 
-        clearTimeout(timeoutId);
-
         if (qs.length === 0) throw new Error('Không trích xuất được câu hỏi nào');
 
         // 4. Sort and finalize
@@ -212,8 +248,8 @@ export function useOcrExtraction(opts: UseOcrExtractionOptions) {
         setQuestions(sorted);
         setStatus('done');
 
-        // 5. Auto-crop figures
-        await autoCropFigures(posMap, dataUrls);
+        // 5. Auto-crop figures (key by global question number via `sorted`)
+        await autoCropFigures(posMap, dataUrls, sorted);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           // User cancelled or timeout — reset silently

@@ -1,11 +1,8 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { TOPIC_LABEL } from '@/shared/constants/topics';
+import { difficultyLabel } from '@/shared/constants/difficulty';
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-  RECOGNITION: 'Nhận biết', COMPREHENSION: 'Thông hiểu',
-  APPLICATION: 'Vận dụng', ADVANCED: 'Vận dụng cao',
-};
 const TOPIC_LABELS = TOPIC_LABEL as Record<string, string>;
 
 interface Question {
@@ -50,7 +47,7 @@ export function useExamResultStats(attempt: ExamAttempt | null) {
       if (diffMap[q.difficulty]) { diffMap[q.difficulty].total++; if (a.isCorrect) diffMap[q.difficulty].correct++; }
     });
     const diffData = Object.entries(diffMap).map(([key, val]) => ({
-      name: DIFFICULTY_LABELS[key] || key, total: val.total, correct: val.correct,
+      name: difficultyLabel(key), total: val.total, correct: val.correct,
       percentage: val.total > 0 ? (val.correct / val.total) * 100 : 0,
     }));
 
@@ -65,12 +62,51 @@ export function useExamResultStats(attempt: ExamAttempt | null) {
       percentage: val.total > 0 ? Math.round((val.correct / val.total) * 100) : 0,
     })).sort((a, b) => b.percentage - a.percentage);
 
-    const sortedTopics = [...topicData].sort((a, b) => a.percentage - b.percentage);
-    const suggestions = [
-      { type: 'CRITICAL', label: 'Cần ôn lại', topic: sortedTopics[0]?.name || 'N/A', desc: 'Chủ đề này bạn đạt kết quả thấp nhất. Nên xem lại lý thuyết cơ bản và làm thêm bài tập nhận biết.', bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-600' },
-      { type: 'WARNING', label: 'Nên xem lại', topic: sortedTopics[1]?.name || 'N/A', desc: 'Bạn đã nắm được cơ bản nhưng còn sai ở một số dạng bài vận dụng.', bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-600' },
-      { type: 'SUCCESS', label: 'Đã nắm tốt', topic: topicData[0]?.name || 'N/A', desc: 'Kết quả tuyệt vời! Bạn có thể chuyển sang ôn tập các dạng bài nâng cao hơn của chủ đề này.', bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
-    ];
+    // Phân loại chủ đề theo mức điểm THỰC TẾ (không theo thứ hạng) để mỗi thẻ
+    // phản ánh đúng năng lực: tránh khen chủ đề điểm thấp và tránh một chủ đề
+    // vừa "cần ôn lại" vừa "đã nắm tốt" khi đề chỉ có ít chủ đề.
+    // topicData đã sắp xếp giảm dần theo percentage (cao → thấp).
+    const critical = topicData.filter(t => t.percentage < 50);
+    const warning = topicData.filter(t => t.percentage >= 50 && t.percentage < 75);
+    const strong = topicData.filter(t => t.percentage >= 75);
+    const moreText = (n: number) => (n > 1 ? ` (và ${n - 1} chủ đề khác)` : '');
+
+    const suggestions: Array<{
+      type: string; label: string; topic: string; desc: string;
+      bg: string; border: string; text: string;
+    }> = [];
+
+    if (critical.length) {
+      const worst = critical[critical.length - 1]; // thấp nhất
+      suggestions.push({
+        type: 'CRITICAL', label: 'Cần ôn lại', topic: worst.name + moreText(critical.length),
+        desc: `Bạn đạt ${worst.percentage}%, cần xem lại lý thuyết cơ bản và làm thêm bài tập nhận biết`,
+        bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-600',
+      });
+    }
+    if (warning.length) {
+      const w = warning[0]; // cao nhất trong nhóm trung bình
+      suggestions.push({
+        type: 'WARNING', label: 'Nên xem lại', topic: w.name + moreText(warning.length),
+        desc: `Bạn đạt ${w.percentage}%, đã nắm cơ bản nhưng còn sai ở một số dạng bài vận dụng`,
+        bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-600',
+      });
+    }
+    if (strong.length) {
+      const s = strong[0]; // tốt nhất
+      suggestions.push({
+        type: 'SUCCESS', label: 'Đã nắm tốt', topic: s.name + moreText(strong.length),
+        desc: `Bạn đạt ${s.percentage}%, có thể chuyển sang các dạng bài nâng cao hơn của chủ đề này`,
+        bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600',
+      });
+    }
+    if (suggestions.length === 0) {
+      suggestions.push({
+        type: 'NEUTRAL', label: 'Tiếp tục luyện tập', topic: 'Chưa đủ dữ liệu',
+        desc: 'Hãy làm thêm bài để hệ thống đánh giá chính xác điểm mạnh và điểm yếu của bạn',
+        bg: 'bg-gray-50', border: 'border-gray-100', text: 'text-gray-600',
+      });
+    }
     const avgTime = attempt.totalQuestions > 0 ? Math.floor(attempt.timeTakenSecs / attempt.totalQuestions) : 0;
     const timeData = attempt.answers.map((_, i) => ({ name: `Câu ${i + 1}`, time: avgTime }));
 

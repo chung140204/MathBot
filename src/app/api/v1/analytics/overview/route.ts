@@ -2,17 +2,23 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/features/auth/lib/auth';
 import prisma from '@/shared/lib/db';
+import { getUserTopicStats } from '@/features/study/lib/topic-stats';
+import { getOrSetJson } from '@/shared/lib/cache';
 import { subDays, format, isSameDay } from 'date-fns';
+import { ErrorCode } from '@/shared/lib/errors';
+
+const OVERVIEW_TTL_S = 180; // 3 minutes — invalidated immediately on exam submit
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized', code: ErrorCode.AUTH_REQUIRED }, { status: 401 });
   }
 
   const userId = session.user.id;
 
   try {
+    const payload = await getOrSetJson(`stats:overview:${userId}`, OVERVIEW_TTL_S, async () => {
     const now = new Date();
     const sevenDaysAgo = subDays(now, 6);
     sevenDaysAgo.setHours(0, 0, 0, 0);
@@ -21,10 +27,11 @@ export async function GET() {
     const [
       generalStats,
       scorePctStats,
-      topicStatsRaw,
+      topicStatsMap,
       weeklyAttempts,
       recentAttempts,
       practiceDateRows,
+      user,
     ] = await Promise.all([
       // 1. General stats via aggregate — no need to load all records
       prisma.examAttempt.aggregate({
@@ -42,19 +49,8 @@ export async function GET() {
         WHERE "userId" = ${userId}
       `,
 
-      // 3. Topic stats via raw GROUP BY — replaces nested JS loops
-      prisma.$queryRaw<
-        Array<{ topic: string; total_questions: bigint; correct_score: number }>
-      >`
-        SELECT q."topic",
-               COUNT(ea."id")::bigint AS total_questions,
-               COALESCE(SUM(ea."score"), 0)::float AS correct_score
-        FROM "exam_answers" ea
-        JOIN "questions" q ON ea."questionId" = q."id"
-        JOIN "exam_attempts" att ON ea."examAttemptId" = att."id"
-        WHERE att."userId" = ${userId}
-        GROUP BY q."topic"
-      `,
+      // 3. Topic stats via shared aggregation helper
+      getUserTopicStats(userId),
 
       // 4. Weekly scores — only last 7 days instead of ALL attempts
       prisma.examAttempt.findMany({
@@ -85,12 +81,18 @@ export async function GET() {
         WHERE "userId" = ${userId}
         ORDER BY practice_date DESC
       `,
+
+      // 7. Target score for the dashboard header
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { targetScore: true },
+      }),
     ]);
 
     const totalExams = generalStats._count.id;
 
     if (totalExams === 0) {
-      return NextResponse.json({
+      return {
         totalExams: 0,
         averageScore: 0,
         bestScore: 0,
@@ -109,7 +111,8 @@ export async function GET() {
           const date = subDays(now, 6 - i);
           return { date: format(date, 'yyyy-MM-dd'), practiced: false, isToday: isSameDay(date, now) };
         }),
-      });
+        targetScore: user?.targetScore ?? null,
+      };
     }
 
     // Process general stats
@@ -119,14 +122,12 @@ export async function GET() {
     const averageScore = Math.round(scorePctStats[0]?.avg_pct ?? 0);
     const bestScore = Math.round(scorePctStats[0]?.max_pct ?? 0);
 
-    // Process topic stats from raw query
-    const topicStats = topicStatsRaw.map(row => ({
-      topic: row.topic,
-      totalQuestions: Number(row.total_questions),
-      correctAnswers: Math.round(Number(row.correct_score) * 10) / 10,
-      accuracy: Number(row.total_questions) > 0
-        ? Math.round((Number(row.correct_score) / Number(row.total_questions)) * 100)
-        : 0,
+    // Process topic stats from shared aggregation helper
+    const topicStats = Array.from(topicStatsMap.values()).map(s => ({
+      topic: s.topic,
+      totalQuestions: s.totalQuestions,
+      correctAnswers: s.correctAnswers,
+      accuracy: s.accuracy,
     }));
 
     // Process weekly scores — only 7 days of data
@@ -217,7 +218,7 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({
+    return {
       totalExams,
       averageScore,
       bestScore,
@@ -230,9 +231,13 @@ export async function GET() {
       currentStreak,
       bestStreak,
       streakCalendar,
+      targetScore: user?.targetScore ?? null,
+    };
     });
+
+    return NextResponse.json(payload);
   } catch (error) {
     console.error('Analytics error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error', code: ErrorCode.INTERNAL_ERROR }, { status: 500 });
   }
 }

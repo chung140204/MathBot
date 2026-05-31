@@ -177,20 +177,52 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       if (isNewSession) send(`data: ${JSON.stringify({ event: 'session', sessionId })}\n\n`);
       send(`data: ${JSON.stringify({ event: 'rag_searching' })}\n\n`);
 
-      // RAG runs INSIDE the stream so the client receives rag_searching immediately.
-      // The student profile is fetched in parallel so the tutor can personalise.
+      // Student profile is independent of the query, so it always runs in the
+      // background (overlaps with OCR and RAG below) — fetched here, awaited later.
+      const profilePromise = prisma.studentProfile
+        .findUnique({
+          where: { userId },
+          select: {
+            level: true, weakTopics: true, strongTopics: true,
+            lastStudied: true, recurringErrors: true, goals: true, summary: true,
+            user: { select: { name: true } },
+          },
+        })
+        .catch(() => null);
+
+      // Image flow: run Vision OCR FIRST so RAG can search on the extracted
+      // problem text. The problem statement lives in the image, so without this
+      // RAG would search an empty/typed-only query and find no worked examples.
+      // (profilePromise still overlaps this — only RAG waits on the OCR result.)
+      let extractedText = '';
+      if (imageBase64) {
+        extractedText = await withRetry(() => nvidia.chat.completions.create({
+          model: process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-11b-vision-instruct',
+          messages: [{ role: 'user', content: [
+            // Verbatim transcription, NOT a summary. The old "ngắn gọn" (concise)
+            // wording made the vision model paraphrase and drop words (e.g. it turned
+            // "có đúng hai điểm cực trị thuộc khoảng (1;4)" into "đường ... (1;4)",
+            // losing "thuộc khoảng" so (1;4) read as a point, not an interval).
+            { type: 'text', text: 'Chép lại CHÍNH XÁC, NGUYÊN VĂN toàn bộ nội dung bài toán trong ảnh: giữ đúng TỪNG CHỮ, từng dấu tiếng Việt, mọi ký hiệu và công thức toán, và chép ĐẦY ĐỦ tất cả các phương án A, B, C, D. TUYỆT ĐỐI KHÔNG tóm tắt, KHÔNG rút gọn, KHÔNG sửa hay suy diễn đề. Nếu không chắc một chữ, cứ chép đúng như nhìn thấy. Chỉ trả về đề bài, không giải, không nhận xét.' },
+            { type: 'image_url', image_url: { url: imageBase64 } },
+          ] }],
+          max_tokens: 1024,
+          temperature: 0,
+        }))
+          .then(r => r.choices[0]?.message?.content ?? '')
+          .catch((e) => { console.error('[Chat] Vision OCR failed:', e); return ''; });
+      }
+
+      // RAG query: for images, search on the OCR'd problem (plus any typed text);
+      // for text-only turns, search on the typed message as before.
+      const ragQuery = imageBase64 && extractedText.trim()
+        ? [lastUserMessage, extractedText].filter(s => s.trim()).join('\n').trim()
+        : lastUserMessage;
+
+      // RAG runs INSIDE the stream so the client receives rag_searching early.
       const [ragResult, studentProfile] = await Promise.all([
-        ragSearch(lastUserMessage, { mode, history: messages }).catch(() => ({ chunks: [] } as RagSearchResult)),
-        prisma.studentProfile
-          .findUnique({
-            where: { userId },
-            select: {
-              level: true, weakTopics: true, strongTopics: true,
-              lastStudied: true, recurringErrors: true, goals: true, summary: true,
-              user: { select: { name: true } },
-            },
-          })
-          .catch(() => null),
+        ragSearch(ragQuery, { mode, history: messages }).catch(() => ({ chunks: [] } as RagSearchResult)),
+        profilePromise,
       ]);
 
       const profileForPrompt: StudentProfileForPrompt | null = studentProfile
@@ -254,16 +286,12 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
       });
 
       const apiMessages: Array<{ role: string; content: any }> = [...recentMessages];
+
+      // Text the student typed alongside the image (strip the markdown image marker).
+      let lastMsgText = '';
       if (imageBase64 && apiMessages.length > 0) {
         const lastIndex = apiMessages.length - 1;
-        const lastMsgText = apiMessages[lastIndex].content.replace(`![image](${imageBase64})\n\n`, '');
-        apiMessages[lastIndex] = {
-          role: 'user',
-          content: [
-            { type: 'text', text: lastMsgText || 'Giải bài tập trong ảnh' },
-            { type: 'image_url', image_url: { url: imageBase64 } },
-          ],
-        };
+        lastMsgText = apiMessages[lastIndex].content.replace(`![image](${imageBase64})\n\n`, '');
       }
 
       const modeConfig = {
@@ -272,18 +300,35 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         tutor: { max_tokens: 4096, temperature: 0.35 },
       }[mode];
 
-      let chatClient: OpenAI;
-      let chatModel: string;
-
       // Chat uses NVIDIA as the PRIMARY provider (free + reliable). Gemini/Groq
       // keys remain in .env for RAG/embeddings/OCR, but are intentionally not used
       // here so chat doesn't waste 429/413 fallback hops when Gemini quota is out.
-      chatClient = nvidia;
-      chatModel = imageBase64
-        ? (process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct')
-        : mode === 'fast'
-          ? (process.env.NVIDIA_FAST_MODEL || process.env.NVIDIA_MODEL || 'qwen/qwen3-next-80b-a3b-instruct')
-          : (process.env.NVIDIA_MODEL || 'qwen/qwen3-next-80b-a3b-instruct');
+      //
+      // Solving is ALWAYS done by a TEXT model chosen by mode — even for images.
+      // For an image we first run vision OCR (below) to extract the problem as
+      // text, then hand that text to the mode's text model. The vision model is
+      // only an extractor, never the solver (the text models reason better).
+      const chatClient: OpenAI = nvidia;
+      let chatModel: string = mode === 'fast'
+        ? (process.env.NVIDIA_FAST_MODEL || process.env.NVIDIA_MODEL || 'qwen/qwen3-next-80b-a3b-instruct')
+        : (process.env.NVIDIA_MODEL || 'qwen/qwen3-next-80b-a3b-instruct');
+
+      // ── Image flow: replace the last message with the OCR'd text (extracted
+      // above, in parallel with RAG) so the solver (text model) can handle it. ──
+      if (imageBase64 && apiMessages.length > 0) {
+        const lastIdx = apiMessages.length - 1;
+        if (extractedText.trim()) {
+          console.log(`[Chat] Vision extracted: ${extractedText.length} chars`);
+          apiMessages[lastIdx] = {
+            role: 'user',
+            content: `${lastMsgText || 'Giải bài tập trong ảnh'}\n\n[Nội dung từ ảnh]:\n${extractedText}`,
+          };
+        } else {
+          // OCR failed — fall back to whatever text the student typed and warn.
+          apiMessages[lastIdx] = { role: 'user', content: lastMsgText || 'Giải bài tập trong ảnh' };
+          send(`data: ${JSON.stringify({ event: 'warning', message: 'Mình chưa đọc được ảnh. Mình sẽ trả lời dựa trên phần chữ em đã nhập.' })}\n\n`);
+        }
+      }
 
       console.log(`[Chat] model=${chatModel}, mode=${mode}, hasImage=${!!imageBase64}`);
 
@@ -296,66 +341,18 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
           stream: true,
         });
 
-      const nvidiaVisionFallback = async () => {
-        if (imageBase64) {
-          const visionModel = process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct';
-          console.log(`[Chat] Step 1: NVIDIA Vision (${visionModel}) reading image...`);
-          try {
-            const visionRes = await nvidia.chat.completions.create({
-              model: visionModel,
-              messages: [{ role: 'user', content: [
-                { type: 'text', text: 'Đọc và trích xuất toàn bộ nội dung bài toán trong ảnh. Dùng LaTeX $...$ cho công thức. Chỉ trả về nội dung bài toán, không giải.' },
-                { type: 'image_url', image_url: { url: imageBase64 } },
-              ] }],
-              max_tokens: 1024,
-              temperature: 0,
-            });
-            const extractedText = visionRes.choices[0]?.message?.content ?? '';
-            console.log(`[Chat] Vision extracted: ${extractedText.length} chars`);
-            const lastIdx = apiMessages.length - 1;
-            const origText = Array.isArray(apiMessages[lastIdx].content)
-              ? apiMessages[lastIdx].content.find((p: any) => p.type === 'text')?.text || ''
-              : apiMessages[lastIdx].content;
-            apiMessages[lastIdx] = { role: 'user', content: `${origText}\n\n[Nội dung từ ảnh]:\n${extractedText}` };
-          } catch {
-            console.log(`[Chat] NVIDIA Vision failed, stripping image`);
-            const lastIdx = apiMessages.length - 1;
-            if (Array.isArray(apiMessages[lastIdx].content)) {
-              const textPart = apiMessages[lastIdx].content.find((p: any) => p.type === 'text');
-              apiMessages[lastIdx] = { role: 'user', content: textPart?.text || '' };
-            }
-          }
-        }
-        chatModel = process.env.NVIDIA_MODEL || 'meta/llama-3.1-70b-instruct';
-        console.log(`[Chat] Step 2: NVIDIA 70b solving with text`);
-        response = await createStream(nvidia, chatModel);
-      };
-
-      // Chat fallback chain = NVIDIA only: primary model + one NVIDIA backup model.
-      // (Gemini/Groq remain available to other features via their .env keys.)
+      // Chat fallback chain = NVIDIA only: primary text model + one backup model.
+      // The request is text-only by now (image already OCR'd), so the backup
+      // always applies — no special-casing for images.
       const fallbackChain: Array<{ client: OpenAI; model: string }> = [];
       fallbackChain.push({ client: chatClient, model: chatModel });
-      if (!imageBase64) {
-        const backupModel = process.env.NVIDIA_BACKUP_MODEL || 'meta/llama-3.3-70b-instruct';
-        if (backupModel !== chatModel) fallbackChain.push({ client: nvidia, model: backupModel });
-      }
+      const backupModel = process.env.NVIDIA_BACKUP_MODEL || 'meta/llama-3.3-70b-instruct';
+      if (backupModel !== chatModel) fallbackChain.push({ client: nvidia, model: backupModel });
 
       let response: any;
       let lastError: any;
-      const originalLastMessage = apiMessages.length > 0 ? { ...apiMessages[apiMessages.length - 1] } : null;
       for (const { client, model } of fallbackChain) {
         try {
-          // Strip image for text-only models (Groq), restore for vision models
-          const lastIdx = apiMessages.length - 1;
-          if (client === groq && imageBase64) {
-            if (Array.isArray(apiMessages[lastIdx].content)) {
-              const textPart = apiMessages[lastIdx].content.find((p: any) => p.type === 'text');
-              apiMessages[lastIdx] = { role: 'user', content: textPart?.text || '' };
-            }
-            console.log('[Chat] Stripped image for text-only model');
-          } else if (originalLastMessage && client !== groq) {
-            apiMessages[lastIdx] = { ...originalLastMessage };
-          }
           chatModel = model;
           console.log(`[Chat] Trying ${model}...`);
           response = await createStream(client, model);
@@ -364,8 +361,7 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         } catch (err: any) {
           lastError = err;
           const status = err?.status;
-          // 413 = request too large (e.g. Groq free-tier TPM limit) → fall through
-          // to a provider with a larger context (NVIDIA) instead of failing.
+          // 413 = request too large → fall through to the backup model.
           if (status === 429 || status === 403 || status === 503 || status === 413) {
             console.log(`[Chat] ${model} returned ${status}, trying next fallback...`);
             await new Promise(r => setTimeout(r, 1000));
@@ -375,13 +371,7 @@ export async function createChatStream(userId: string, params: ChatStreamParams)
         }
       }
 
-      // If all fallbacks failed with 429/503 and we have an image, try NVIDIA vision extraction
-      if (!response && imageBase64) {
-        console.log('[Chat] All models failed, trying NVIDIA Vision extraction...');
-        await nvidiaVisionFallback();
-      } else if (!response) {
-        throw lastError;
-      }
+      if (!response) throw lastError;
 
       let fullResponse = '';
       let thinkingStarted = false;

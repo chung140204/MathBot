@@ -44,6 +44,22 @@ function balanceSingleDollars(line: string): string {
 // LaTeX multi-line environments KaTeX can render inside $$ (align/align* → aligned).
 const MATH_ENVS = 'aligned|align\\*?|cases|gathered|array|matrix|bmatrix|pmatrix|vmatrix';
 
+// Relational / arrow commands that may end up between two adjacent inline-math spans.
+const REL_CMDS = 'Longleftrightarrow|Leftrightarrow|Rightarrow|Leftarrow|longrightarrow|longleftarrow|leftrightarrow|rightarrow|leftarrow|implies|iff|mapsto|to|leq|geq|neq|approx|equiv|sim|cong|propto|in|notin|subseteq|supseteq|subset|supset|cup|cap|pm|mp|times|div|cdot|le|ge|ne|gg|ll';
+
+// Merge two adjacent inline-math spans separated only by a bare relational/arrow
+// command: `$A$\Rightarrow$B$` → `$A \Rightarrow B$`. Weaker models emit chains of
+// glued spans; the command wedged between a closing `$` and an opening `$` is NOT
+// inside math mode, so KaTeX never sees it and it renders as literal text (e.g.
+// "\Rightarrow"). Looped to collapse chains ($A$\to$B$\to$C$). Runs before the
+// $$-block protection so it only touches single-`$` inline spans.
+function mergeAdjacentMathSpans(s: string): string {
+  const re = new RegExp(`\\$([^$\\n]+?)\\$\\s*(\\\\(?:${REL_CMDS}))\\s*\\$([^$\\n]+?)\\$`, 'g');
+  let prev: string;
+  do { prev = s; s = s.replace(re, '$$$1 $2 $3$$'); } while (s !== prev);
+  return s;
+}
+
 // LaTeX command names (used to tell a bare-math line from Vietnamese prose).
 const LATEX_WORDS = new Set([
   'cdot','times','div','pm','mp','frac','dfrac','tfrac','sqrt','left','right','geq','leq','neq',
@@ -104,12 +120,20 @@ export function normalizeContent(content: string): string {
     .replace(/(?<!\$)\\(Longleftrightarrow|Leftrightarrow|Rightarrow|Leftarrow|implies|iff)/g, '$\\$1$')
     .replace(/\bundefined\b/g, '');
 
+  // Fuse glued inline-math spans (`$A$\Rightarrow$B$`) before block protection so the
+  // operator ends up inside math mode instead of rendering as literal "\Rightarrow".
+  result = mergeAdjacentMathSpans(result);
+
   // Protect display-math blocks ($$...$$, possibly multi-line) BEFORE the per-line
   // fixes below — otherwise the bare-math-line wrapper would re-wrap their inner
   // content and break the fences. Also trims fence trailing spaces and isolates
   // each block as its own paragraph (blank lines) so remark-math parses it.
   result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_m, inner: string) => {
-    blocks.push(`$$\n${String(inner).trim()}\n$$`);
+    // Strip stray single `$` inside the block. Weaker models sometimes nest an
+    // inline `$...$` (e.g. around \boxed) inside the $$ Kết quả block; the literal
+    // `$` is illegal in KaTeX math mode and makes it render the whole source in
+    // red (errorColor). Mirrors the inner-`$` strip done for \begin{} environments.
+    blocks.push(`$$\n${String(inner).replace(/\$/g, '').trim()}\n$$`);
     return `\n\n\x01MB${blocks.length - 1}\x01\n\n`;
   });
 
